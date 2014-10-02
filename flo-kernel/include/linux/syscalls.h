@@ -63,6 +63,8 @@ struct getcpu_cache;
 struct old_linux_dirent;
 struct perf_event_attr;
 struct file_handle;
+struct dev_acceleration;
+struct acc_motion;
 
 #include <linux/types.h>
 #include <linux/aio_abi.h>
@@ -857,5 +859,12 @@ asmlinkage long sys_process_vm_writev(pid_t pid,
 				      const struct iovec __user *rvec,
 				      unsigned long riovcnt,
 				      unsigned long flags);
+
+/* System calls of hw3 */
+asmlinkage long sys_set_acceleration(struct dev_acceleration __user *acceleration);
+asmlinkage long sys_accevt_create(struct acc_motion __user *acceleration);
+asmlinkage long sys_accevt_wait(int event_id);
+asmlinkage long sys_accevt_signal(struct dev_acceleration __user *acceleration);
+asmlinkage long sys_accevt_destroy(int event_id);
 
 #endif
