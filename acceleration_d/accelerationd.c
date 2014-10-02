@@ -48,19 +48,18 @@ static void enumerate_sensors(const struct sensors_module_t *sensors);
 
 static int poll_sensor_data(struct sensors_poll_device_t *sensors_device)
 {
-    const size_t numEventMax = 16;
-    const size_t minBufferSize = numEventMax;
-    sensors_event_t buffer[minBufferSize];
+	const size_t numEventMax = 16;
+	const size_t minBufferSize = numEventMax;
+	sensors_event_t buffer[minBufferSize];
 	ssize_t count = sensors_device->poll(sensors_device, buffer, minBufferSize);
 	int i;
-
 
 	for (i = 0; i < count; ++i) {
 		if (buffer[i].sensor != effective_sensor)
 			continue;
 
 		/* At this point we should have valid data*/
-        /* Scale it and pass it to kernel*/
+        	/* Scale it and pass it to kernel*/
 		dbg("Acceleration: x= %0.2f, y= %0.2f, "
 			"z= %0.2f\n", buffer[i].acceleration.x,
 			buffer[i].acceleration.y, buffer[i].acceleration.z);
@@ -69,13 +68,51 @@ static int poll_sensor_data(struct sensors_poll_device_t *sensors_device)
 	return 0;
 }
 
+/* @lfred: */
+/* TODO: how to translate the information ? */
+void construct_sensor_data(
+	struct sensors_poll_device_t *in, 
+	struct dev_acceleration *out)
+{
+	out->x = 0.0;
+	out->y = 0.0;
+	out->z = 0.0;
+}
+
+void create_my_daemon()
+{
+	pid_t child;
+	uid_t uid = getuid();
+
+	/* it's root only */
+	if (uid != 0){
+		dbg("Sorry you are not root.");
+		exit(0);
+	}
+
+	child = fork();
+
+	if (child < 0) {
+		dbg("You failed to fork - bye bye");
+		exit (-1);
+	}
+
+	if (child > 0) {
+		dbg("I am parent - byebye");
+		exit(0);
+	}
+}
+
 /* entry point: fill in daemon implementation
    where indicated */
 int main(int argc, char **argv)
 {
+	create_my_daemon ();
+
 	effective_sensor = -1;
 	struct sensors_module_t *sensors_module = NULL;
 	struct sensors_poll_device_t *sensors_device = NULL;
+	struct dev_acceleration data;
 
 	printf("Opening sensors...\n");
 	if (open_sensors(&sensors_module,
@@ -90,6 +127,9 @@ int main(int argc, char **argv)
 	printf("turn me into a daemon!\n");
 	while (1) {
 		poll_sensor_data(sensors_device);
+		construct_sensor_data(sensors_device, &data); 
+		syscall(__NR_set_acceleration, &data); 
+		usleep(M_POLLING_INT);	
 	}
 
 	return EXIT_SUCCESS;
