@@ -46,7 +46,9 @@ static int open_sensors(struct sensors_module_t **hw_module,
 			struct sensors_poll_device_t **poll_device);
 static void enumerate_sensors(const struct sensors_module_t *sensors);
 
-static int poll_sensor_data(struct sensors_poll_device_t *sensors_device)
+static int poll_sensor_data(
+	struct sensors_poll_device_t *sensors_device,
+	struct dev_acceleration *out)
 {
 	const size_t numEventMax = 16;
 	const size_t minBufferSize = numEventMax;
@@ -64,19 +66,11 @@ static int poll_sensor_data(struct sensors_poll_device_t *sensors_device)
 			"z= %0.2f\n", buffer[i].acceleration.x,
 			buffer[i].acceleration.y, buffer[i].acceleration.z);
 
+		out->x = buffer[i].acceleration.x;
+		out->y = buffer[i].acceleration.y;
+		out->z = buffer[i].acceleration.z;
 	}
 	return 0;
-}
-
-/* @lfred: */
-/* TODO: how to translate the information ? */
-void construct_sensor_data(
-	struct sensors_poll_device_t *in, 
-	struct dev_acceleration *out)
-{
-	out->x = 0.0;
-	out->y = 0.0;
-	out->z = 0.0;
 }
 
 void create_my_daemon()
@@ -126,10 +120,11 @@ int main(int argc, char **argv)
 	/* Fill in daemon implementation around here */
 	printf("turn me into a daemon!\n");
 	while (1) {
-		poll_sensor_data(sensors_device);
-		construct_sensor_data(sensors_device, &data); 
+		poll_sensor_data(sensors_device, &data);
 		syscall(__NR_set_acceleration, &data); 
-		usleep(M_POLLING_INT);	
+		
+		/* sleep in us, remember to switch */
+		usleep(TIME_INTERVAL * 1000);	
 	}
 
 	return EXIT_SUCCESS;

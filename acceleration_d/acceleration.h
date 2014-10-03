@@ -1,7 +1,7 @@
 #ifndef _ACCELERATION_H
 #define _ACCELERATION_H
 
-#define M_POLLING_INT	200
+#define TIME_INTERVAL	200
 
 struct dev_acceleration{
 	int x;
