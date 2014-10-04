@@ -79,7 +79,7 @@ void create_my_daemon()
 	uid_t uid = getuid();
 
 	/* it's root only */
-	if (uid != 0){
+	if (uid != 0) {
 		dbg("Sorry you are not root.");
 		exit(0);
 	}
@@ -88,7 +88,7 @@ void create_my_daemon()
 
 	if (child < 0) {
 		dbg("You failed to fork - bye bye");
-		exit (-1);
+		exit(-1);
 	}
 
 	if (child > 0) {
@@ -101,12 +101,13 @@ void create_my_daemon()
    where indicated */
 int main(int argc, char **argv)
 {
-	create_my_daemon ();
-
-	effective_sensor = -1;
 	struct sensors_module_t *sensors_module = NULL;
 	struct sensors_poll_device_t *sensors_device = NULL;
 	struct dev_acceleration data;
+
+	create_my_daemon();
+
+	effective_sensor = -1;
 
 	printf("Opening sensors...\n");
 	if (open_sensors(&sensors_module,
@@ -116,13 +117,12 @@ int main(int argc, char **argv)
 	}
 	enumerate_sensors(sensors_module);
 
-
 	/* Fill in daemon implementation around here */
 	printf("turn me into a daemon!\n");
 	while (1) {
 		poll_sensor_data(sensors_device, &data);
 		syscall(__NR_set_acceleration, &data); 
-		
+
 		/* sleep in us, remember to switch */
 		usleep(TIME_INTERVAL * 1000);	
 	}
