@@ -5,7 +5,8 @@
 #include <linux/syscalls.h>
 #include <linux/acceleration.h>
 
-SYSCALL_DEFINE1(set_acceleration, struct dev_acceleration __user *, acceleration)
+SYSCALL_DEFINE1(set_acceleration,
+		struct dev_acceleration __user *, acceleration)
 {
 	long retval = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);

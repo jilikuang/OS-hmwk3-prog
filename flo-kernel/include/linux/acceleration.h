@@ -31,3 +31,25 @@ struct acc_motion {
 #else
 #define PRINTK(...)
 #endif
+
+/* Self-defined data structure */
+struct acc_dev_info {
+	unsigned int m_x;
+	unsigned int m_y;
+	unsigned int m_z;
+	unsigned int m_timestamp;
+};
+
+struct acc_event_info {
+	unsigned int m_eid;
+	struct acc_motion m_motion;
+	struct list_head m_event_list;
+};
+
+struct acc_user_info {
+	pid_t m_req_proc;
+	unsigned int m_timestamp;
+	unsigned int m_activated;
+	struct acc_event_info *mp_event;
+	struct list_head m_user_list;
+};
