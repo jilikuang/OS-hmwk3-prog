@@ -1,6 +1,7 @@
 /*
  * Implementation of system calls of hw3
  */
+#include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/syscalls.h>
 #include <linux/acceleration.h>
@@ -10,12 +11,21 @@ static list_head user_list = LIST_HEAD(user_list);
 static DECLARE_MUTEX(event_list_sem);
 static DECLARE_MUTEX(user_list_sem);
 
+/* @lfred: just to prevent multi-daemon or TA's test */
+static DECLARE_MUTEX(set_mutex);
+static DECLARE_MUTEX(signal_mutex);
+
 SYSCALL_DEFINE1(set_acceleration,
 		struct dev_acceleration __user *, acceleration)
 {
+	/* @lfred: static data to hold everything */
+	static struct dev_acceleration s_kData;
+	
+	/* local frame */
 	long retval = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
-	static struct dev_acceleration s_kData;
+	unsigned long retCopy = 0;
+	int retDown = 0;
 
 	PRINTK("set_acceleration: old value: %d, %d, %d\n",
 		s_kData.x, s_kData.y, s_kData.z);
@@ -30,7 +40,16 @@ SYSCALL_DEFINE1(set_acceleration,
 		return -EFAULT;
 	}
 
-	if (copy_from_user(&s_kData, acceleration, sz) != 0) {
+	retDown = down_interruptible(&set_mutex);
+	if (retDown != 0) {
+		PRINTK("Sorry dude, you received a signal");
+		return retDown;
+	}
+
+	retCopy = copy_from_user(&s_kData, acceleration, sz);
+	up(&set_mutex);
+  
+	if (retCopy != 0) {
 		PRINTK("set_acceleration memory error\n");
 		return -EFAULT;
 	}
@@ -156,10 +175,13 @@ int get_event(event_list, event_id){
 
 SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
+	/* @lfred: it's just not impl */
+	struct dev_acceleration data;
+	
 	long retval = 0;
+	int retDown = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
-	static struct dev_acceleration s_kData;
-
+	
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
 		return -EINVAL;
@@ -170,13 +192,27 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		return -EFAULT;
 	}
 
-	if (copy_from_user(&s_kData, acceleration, sz) != 0) {
+	if (copy_from_user(&data, acceleration, sz) != 0) {
+		PRINTK("dude - failed to copy. 88\n");
+		return -EFAULT;
+	}
+
+	retDown = down_interruptible(&signal_mutex);
+	if (retDown != 0) {
+		PRINTK("Hey dud, you're interupted.");
+		return retDown;
+	}
+	
+	/* TODO: do the real thing here */
+
+	up(&signal_mutex);
+
+	if (retval != 0) {
 		PRINTK("set_acceleration memory error\n");
 		return -EFAULT;
 	}
 
-	PRINTK("accevt_signal\n");
-
+	PRINTK("accevt_signal: %ld\n", retval);
 	return retval;
 }
 
