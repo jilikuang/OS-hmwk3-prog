@@ -19,8 +19,8 @@ static DEFINE_MUTEX(event_list_mu);
 static DEFINE_MUTEX(user_list_mu);
 
 /* @lfred: just to prevent multi-daemon or TA's test */
-static DEFINE_SEMAPHORE(set_semaphore);
-static DEFINE_SEMAPHORE(signal_semaphore);
+static DEFINE_MUTEX(set_mutex);
+static DEFINE_MUTEX(signal_mutex);
 
 /* Event ID */
 #define EVENT_ID_MIN	(10)
@@ -52,14 +52,14 @@ SYSCALL_DEFINE1(set_acceleration,
 		return -EFAULT;
 	}
 
-	retDown = down_interruptible(&set_semaphore);
+	retDown = mutex_lock_interruptible(&set_mutex);
 	if (retDown != 0) {
 		PRINTK("Sorry dude, you received a signal");
 		return retDown;
 	}
 
 	retCopy = copy_from_user(&s_kData, acceleration, sz);
-	up(&set_semaphore);
+	mutex_unlock(&set_mutex);
   
 	if (retCopy != 0) {
 		PRINTK("set_acceleration memory error\n");
@@ -95,10 +95,14 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	PRINTK("accevt_create\n");
 
+	/* create the user info memory */
 	new_event = (struct acc_event_info *)kmalloc(
 			sizeof(struct acc_event_info), GFP_ATOMIC);
 	if (new_event == NULL)
 		return -ENOMEM;
+
+	/* create the kernel motion memory */
+	
 
 	mutex_lock(&event_list_mu);
 
@@ -226,7 +230,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		return -EFAULT;
 	}
 
-	retDown = down_interruptible(&signal_semaphore);
+	retDown = mutex_lock_interruptible(&signal_mutex);
 	if (retDown != 0) {
 		PRINTK("Hey dud, you're interupted.");
 		return retDown;
@@ -234,7 +238,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	
 	/* TODO: do the real thing here */
 
-	up(&signal_semaphore);
+	mutex_unlock(&signal_mutex);
 
 	if (retval != 0) {
 		PRINTK("set_acceleration memory error\n");
