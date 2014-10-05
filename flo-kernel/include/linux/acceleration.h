@@ -47,9 +47,10 @@ struct acc_event_info {
 };
 
 struct acc_user_info {
-	pid_t m_req_proc;
-	unsigned int m_timestamp;
+	long m_req_proc;
+	unsigned long m_timestamp;
 	unsigned int m_activated;
 	struct acc_event_info *mp_event;
 	struct list_head m_user_list;
+	struct semaphore *thread_sem;
 };
