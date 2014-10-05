@@ -52,5 +52,6 @@ struct acc_user_info {
 	unsigned int m_activated;
 	struct acc_event_info *mp_event;
 	struct list_head m_user_list;
-	struct semaphore *thread_sem;
+	struct mutex thread_mu;
 };
+
