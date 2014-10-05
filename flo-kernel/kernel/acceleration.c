@@ -248,9 +248,24 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 {
 	long retval = 0;
+	struct acc_event_info *info;
 
 	PRINTK("accevt_destroy\n");
 
+	mutex_lock(&event_list_mu);
+
+	list_for_each_entry(info, &event_list, m_event_list)
+		if (info->m_eid == event_id)
+			break;
+
+	if (&(info->m_event_list) == &event_list)
+		return -EINVAL;
+
+	list_del(&(info->m_event_list));
+
+	mutex_unlock(&event_list_mu);
+
+	kfree(info);
+
 	return retval;
 }
-
