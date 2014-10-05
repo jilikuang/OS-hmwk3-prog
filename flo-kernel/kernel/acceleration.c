@@ -22,6 +22,11 @@ static DEFINE_MUTEX(user_list_mu);
 static DEFINE_SEMAPHORE(set_semaphore);
 static DEFINE_SEMAPHORE(signal_semaphore);
 
+/* Event ID */
+#define EVENT_ID_MIN	(10)
+#define EVENT_ID_MAX	(0x0FFFFFF0)
+static atomic_t last_event_id = ATOMIC_INIT(EVENT_ID_MIN);
+
 SYSCALL_DEFINE1(set_acceleration,
 		struct dev_acceleration __user *, acceleration)
 {
@@ -69,9 +74,9 @@ SYSCALL_DEFINE1(set_acceleration,
 
 SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 {
-	long retval = 0;
 	unsigned long sz = sizeof(struct acc_motion);
-	static struct acc_motion s_kData;
+	struct acc_motion s_kData;
+	struct acc_event_info *new_event;
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -90,7 +95,23 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	PRINTK("accevt_create\n");
 
-	return retval;
+	new_event = (struct acc_event_info *)kmalloc(
+			sizeof(struct acc_event_info), GFP_ATOMIC);
+	if (new_event == NULL)
+		return -ENOMEM;
+
+	mutex_lock(&event_list_mu);
+
+	memcpy(&new_event->m_motion, &s_kData, sizeof(struct acc_motion));
+	new_event->m_eid = atomic_add_return(1, &last_event_id);
+	if (atomic_cmpxchg(&last_event_id, EVENT_ID_MAX, EVENT_ID_MIN)
+			== EVENT_ID_MAX)
+		PRINTK("The event id is reset\n");
+	list_add_tail(&(new_event->m_event_list), &event_list);
+
+	mutex_unlock(&event_list_mu);
+
+	return (long)new_event->m_eid;
 }
 
 int check_event_exist(int event_id){
