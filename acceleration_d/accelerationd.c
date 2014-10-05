@@ -161,8 +161,10 @@ static int open_sensors(struct sensors_module_t **mSensorModule,
 	const struct sensor_t *list;
 	ssize_t count = (*mSensorModule)->get_sensors_list(*mSensorModule, &list);
 	size_t i;
-	for (i=0 ; i<(size_t)count ; i++)
+	for (i=0 ; i<(size_t)count ; i++) {
+		(*mSensorDevice)->setDelay(*mSensorDevice, list[i].handle, 100);
 		(*mSensorDevice)->activate(*mSensorDevice, list[i].handle, 1);
+	}
 
 	return 0;
 }
