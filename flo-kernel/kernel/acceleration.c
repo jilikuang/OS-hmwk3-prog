@@ -298,9 +298,10 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 		return -ENOMEM;
 
 	/* init the user struct */
-	new_user->m_req_proc = current->pid;
-	new_user->m_timestamp = get_current_time();
-	new_user->m_activated = M_TRUE;
+	new_user->m_req_proc	= current->pid;
+	new_user->m_timestamp	= get_current_time();
+	new_user->m_activated	= M_TRUE;
+	new_user->m_ret_val	= 0;
 	sema_init(&new_user->m_thrd_sema, 1);
 	semRet = down_interruptible(&new_user->m_thrd_sema);
 	
@@ -337,6 +338,8 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	/* start waiting - signal will do the clean-up for normal case. */
 	semRet = down_interruptible(&new_user->m_thrd_sema);
 
+	/* WAKE UP */
+	/*********************************************************************/
 	/* clean up myself if interrupted .*/
 	if (semRet != 0) {
 		/* return the semaphore */
@@ -348,9 +351,11 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 		mutex_unlock(&data_mtx);
 
 		retval = semRet;
+	} else {
+		/* 2nd phase of cleaning: wait has to free itself */
+		retval = new_user->m_ret_val;
 	}
 
-	/* 2nd phase of cleaning: wait has to free itself */
 	kfree(new_user);
 	return retval;
 }
@@ -437,6 +442,7 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 	/* iterate user and wake them up */
 	/* the user pointer will be free @ wait function */
 	list_for_each_entry_safe(iter, next, &(evt->m_wait_list), m_user_list) {
+		iter->m_ret_val = -EAGAIN; 
 		list_del(&(iter->m_user_list));
 		up(&(iter->m_thrd_sema));
 	}
