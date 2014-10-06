@@ -17,6 +17,7 @@
 
 /* Define the window */
 #define WINDOW		(16 * 1024)
+#define M_FIFO_CAPACITY	(WINDOW * sizeof(struct acc_dev_info))
 
 /* event limitations */
 #define EVENT_ID_MIN	(10)
@@ -74,6 +75,13 @@ struct acc_user_info {
 	/* control locals */
 	struct semaphore m_thrd_sema;
 	struct list_head m_user_list;
+};
+
+struct acc_fifo {
+	struct acc_dev_info m_buf[WINDOW];
+	int m_head;	/* current head */
+	int m_tail;	/* next to enqueue */
+	int m_capacity;
 };
 
 #endif /* __ACC_H__ */

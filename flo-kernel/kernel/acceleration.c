@@ -29,8 +29,8 @@ static DEFINE_MUTEX(set_mutex);
 /* other data */
 /*****************************************************************************/
 static unsigned int g_lastId = 0;
-//static BOOL g_init = M_FALSE;
-//DECLARE_KFIFO(g_dataq, WINDOW); 
+static BOOL g_init = M_FALSE;
+static struct acc_fifo g_sensor_data; 
 
 /*****************************************************************************/
 /* Util function to get current time */
@@ -42,24 +42,52 @@ static unsigned int get_current_time(void)
 	return tv.tv_usec + (tv.tv_sec)*1000000;
 }
 
-#if 0
-/* !!! THREAD-SAFE FUNCTION !!! */
-static void init_fifo(void)
+/* !!! NOT THREAD-SAFE FUNCTION !!! */
+/* !!! called with DATA_MTX section ONLY !!!*/
+static BOOL init_fifo(void)
 {
 	if (g_init == M_TRUE)
-		return;
-
-	if (mutex_lock_interruptible(&data_mtx) != 0)
-		return;
+		return M_TRUE;
 
 	if (g_init == M_FALSE) {
 		g_init = M_TRUE;
-		INIT_KFIFO(&g_dataq);
+		g_sensor_data.m_head = -1;
+		g_sensor_data.m_tail = 0;
+		g_sensor_data.m_capacity = M_FIFO_CAPACITY; 
 	}
 
-	mutex_unlock(&data_mtx);
+	return M_TRUE;
 } 
-#endif
+
+/* !!! NOT THREAD-SAFE FUNCTION !!! */
+/* !!! called with DATA_MTX section ONLY !!!*/
+static void enqueue_data(struct dev_acceleration *in) {
+
+	struct acc_dev_info *p_data;
+	
+	if (g_init == M_FALSE) {
+		PRINTK("FIFO not inited.");
+		return;
+	} 
+
+	if (g_sensor_data.m_head == -1)
+		g_sensor_data.m_head++;
+	else {
+		/* advance the head, tail is coming */
+		if (g_sensor_data.m_head == g_sensor_data.m_tail)
+			g_sensor_data.m_head =
+				(g_sensor_data.m_head + 1) % WINDOW;
+	}
+
+	p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail]);
+	p_data->m_x = in->x;
+	p_data->m_y = in->y;
+	p_data->m_z = in->z;	
+	p_data->m_timestamp = get_current_time();
+
+	/* advance the tail */
+	g_sensor_data.m_tail = (g_sensor_data.m_tail + 1) % WINDOW;	
+}
 
 /* !!! NOT THREAD-SAFE !!! */
 /* the function is used to allocate a new ID */
@@ -191,6 +219,10 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	INIT_LIST_HEAD(&new_event->m_event_list);
 	INIT_LIST_HEAD(&new_event->m_wait_list);
 
+	/* required by spec: capping with WINDOW size */
+	if (new_event->m_motion.frq > WINDOW)
+		new_event->m_motion.frq = WINDOW;
+
 	/* CRITICAL section: init event with lock */	
 	ret = mutex_lock_interruptible(&data_mtx);
 	
@@ -310,14 +342,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
 	/* @lfred: it's just not impl */
 	struct dev_acceleration data;
-	struct acc_dev_info d_info;
 	
 	long retval = 0;
 	int retDown = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
-	
-	/* at any case, we need to call this */
-	//init_fifo();
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -335,19 +363,19 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		PRINTK("Hey dud, you're interupted.");
 		return retDown;
 	}
+
+	/* init the fifo: it's okay to call multi times */
+	init_fifo();
 	
 	/* TODO: 	do the real thing here 	*/
 	/*		do cleanup as well 	*/
 
 	/* step 1. put data into the Q */
-	d_info.m_x = data.x;
-	d_info.m_y = data.y;
-	d_info.m_z = data.z;
-	d_info.m_timestamp = get_current_time();
-
-	//kfifo_in(&g_dataq, &d_info, sizeof(struct acc_dev_info));
+	enqueue_data(&data);
 
 	/* step 2. check if any event is activated */
+	/* TODO: implement the algorithm */
+
 	mutex_unlock(&data_mtx);
 
 	PRINTK("accevt_signal: %ld\n", retval);
