@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#include <error.h>
+#include <sys/wait.h>
 
 #if 1
 #define dbg	printf
@@ -23,49 +26,88 @@ struct acc_motion {
 	unsigned int frq;
 };
 
-static void report_shake(char *type)
-{
-	if (type == NULL)
-		printf("%d detected a shake\n", (int)getpid());
-	else
-		printf("%d detected a %s shake\n", (int)getpid(), type);
-}
-
 int main(int argc, char **argv)
 {
 	int retval = 0;
-	int event_id;
 	char *exit;
-	struct acc_motion motion;
-
-	if (argc < 5) {
-		printf("Insufficient arguments\n");
+	unsigned int dlt_num, frq_num;
+	unsigned int dlt_min, dlt_max;
+	unsigned int frq_min, frq_max;
+	unsigned int dlt_stp, frq_stp;
+	unsigned long proc_num;
+#if 0
+	int i = 0;
+	for (i = 0; i < argc; i++)
+		printf("argv[%d] = %s\n", i, argv[i]);
+#endif
+	if (argc < 7) {
+		printf("Too few arguments\n");
 		return -1;
 	}
 
-	motion.dlt_x = (unsigned int)strtol(argv[1], &exit, 10);
-	motion.dlt_y = (unsigned int)strtol(argv[2], &exit, 10);
-	motion.dlt_z = (unsigned int)strtol(argv[3], &exit, 10);
-	motion.frq   = (unsigned int)strtol(argv[4], &exit, 10);
+	/* Set up environment variables */
+	dlt_num = strtol(argv[1], &exit, 10);
+	dlt_min = strtol(argv[2], &exit, 10);
+	dlt_max = strtol(argv[3], &exit, 10);
+	if (dlt_max < dlt_min) {
+		printf("Invalid dlt_max\n");
+		return -1;
+	} else if (dlt_max == dlt_min) {
+		printf("dlt_num enforced to 1\n");
+		dlt_num = 1;
+	}
+	frq_num = strtol(argv[4], &exit, 10);
+	frq_min = strtol(argv[5], &exit, 10);
+	frq_max = strtol(argv[6], &exit, 10);
+	if (frq_max < frq_min) {
+		printf("Invalid frq_max\n");
+		return -1;
+	} else if (frq_max == frq_min) {
+		printf("frq_num enforced to 1\n");
+		frq_num = 1;
+	}
 
-	dbg("(x, y, z, frq) = (%d, %d, %d, %d)\n",
-			motion.dlt_x, motion.dlt_y,
-			motion.dlt_z, motion.frq);
+	dbg("%d %d %d / %d %d %d\n",
+			dlt_num, dlt_min, dlt_max,
+			frq_num, frq_min, frq_max);
 
-	event_id = syscall(__NR_accevt_create, &motion);
-	dbg("event %d is created\n", event_id);
-	if (event_id < 0)
-		retval = event_id;
+	if (dlt_num > 1)
+		dlt_stp = (dlt_max - dlt_min) / (dlt_num - 1);
 	else
-		while (1) {
+		dlt_stp = 0;
+	dbg("%d\n", dlt_stp);
+	if (frq_num > 1)
+		frq_stp = (frq_max - frq_min) / (frq_num - 1);
+	else
+		frq_stp = 0;
+	dbg("%d\n", frq_stp);
+	proc_num = dlt_num * frq_num;
+	dbg("%ld\n", proc_num);
+
+	dbg("%d starts to dispatch shake detection\n", getpid());
+
+	/* Fork child to detect */
+	{
+		pid_t pid;
+		int event_id;
+		struct acc_motion motion;
+
+		motion.dlt_x = dlt_max;
+		motion.dlt_y = 0;
+		motion.dlt_z = 0;
+		motion.frq = frq_max;
+		event_id = syscall(__NR_accevt_create, &motion);
+		pid = fork();
+		if (pid == 0) {
 			retval = syscall(__NR_accevt_wait, event_id);
-			if (retval < 0)
-				break;
-			if (argc < 6)
-				report_shake(NULL);
-			else
-				report_shake(argv[5]);
+			printf("%d detected a shake\n", getpid());
+			return retval;
+		} else if (pid > 0) {
+			while (wait(NULL) > 0) ;
+		} else {
+			retval = pid;
 		}
+	}
 
 	return retval;
 }

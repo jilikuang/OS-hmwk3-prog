@@ -6,6 +6,8 @@ CFLAGS = -g -O2 -Wall
 LDFLAGS =
 CC = arm-none-linux-gnueabi-gcc
 LD = arm-none-linux-gnueabi-ld
+"CC = gcc
+"LD = ld
 
 default: $(SOURCES) $(TARGET)
 
