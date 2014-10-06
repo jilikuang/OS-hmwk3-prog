@@ -420,6 +420,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		/* iterate the task list */
 		list_for_each_entry_safe (
 			task, next_task, &(evt->m_wait_list), m_user_list) {
+			
+			if (task->m_activated == M_FALSE)
+				continue;
+
 			/* reset match counter */
 			matchCount = 0;
 		
@@ -447,7 +451,8 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 
 			/* remove from the list && wake up the task */
 			if (matchCount >= p_mot->frq) {
-				list_del (&(task->m_user_list));
+				list_del(&(task->m_user_list));
+				task->m_activated = M_FALSE;
 				up(&(task->m_thrd_sema));
 			}
 		}
