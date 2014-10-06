@@ -43,7 +43,7 @@ struct acc_motion {
 	unsigned int dlt_z;	/* +/- around Z-axis */
 	unsigned int frq;	/* Number of samples that satisfy:
 				   sum_each_sample(dlt_x + dlt_y + dlt_z)
-				   > NOSIE */
+				   > NOISE */
 };
 
 /* !!! THE SIZE HAS TO BE 16 BYTEs HERE 	*/
@@ -79,7 +79,7 @@ struct acc_user_info {
 
 struct acc_fifo {
 	struct acc_dev_info m_buf[WINDOW];
-	struct acc_dev_info m_prev;
+	struct dev_acceleration  m_prev;
 
 	int m_head;	/* current head */
 	int m_tail;	/* next to enqueue */

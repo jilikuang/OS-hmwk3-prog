@@ -56,9 +56,9 @@ static BOOL init_fifo(void)
 		g_sensor_data.m_capacity = M_FIFO_CAPACITY; 
 
 		/* init the previous data */	
-		g_sensor_data.m_prev.m_x = 0;
-		g_sensor_data.m_prev.m_y = 0;
-		g_sensor_data.m_prev.m_z = 0;
+		g_sensor_data.m_prev.x = 0;
+		g_sensor_data.m_prev.y = 0;
+		g_sensor_data.m_prev.z = 0;
 	}
 
 	return M_TRUE;
@@ -69,7 +69,7 @@ static BOOL init_fifo(void)
 static void enqueue_data(struct dev_acceleration *in) {
 
 	struct acc_dev_info *p_data;
-	struct acc_dev_info *p_prev;
+	struct dev_acceleration *p_prev;
 	
 	if (g_init == M_FALSE) {
 		PRINTK("FIFO not inited.");
@@ -90,22 +90,22 @@ static void enqueue_data(struct dev_acceleration *in) {
 	
 	/* store the diff */
 	p_data->m_x = 
-		(in->x > p_prev->m_x)?
-			in->x - p_prev->m_x:
-			p_prev->m_x - in->x;
+		(in->x > p_prev->x)?
+			in->x - p_prev->x:
+			p_prev->x - in->x;
 	p_data->m_y = 
-		(in->y > p_prev->m_y)?
-			in->y - p_prev->m_y:
-			p_prev->m_y - in->y;
+		(in->y > p_prev->y)?
+			in->y - p_prev->y:
+			p_prev->y - in->y;
 	p_data->m_z = 
-		(in->z > p_prev->m_z)?
-			in->z - p_prev->m_z:
-			p_prev->m_z - in->z;
+		(in->z > p_prev->z)?
+			in->z - p_prev->z:
+			p_prev->z - in->z;
 	
 	/* save the current data */
-	p_prev->m_x = in->x;
-	p_prev->m_y = in->y;
-	p_prev->m_z = in->z;
+	p_prev->x = in->x;
+	p_prev->y = in->y;
+	p_prev->z = in->z;
 	
 	/* set time stamp */
 	p_data->m_timestamp = get_current_time();
