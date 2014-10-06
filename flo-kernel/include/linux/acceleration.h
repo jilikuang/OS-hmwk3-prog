@@ -68,7 +68,7 @@ struct acc_event_info {
 /* created when acc_wait is called */
 struct acc_user_info {
 	
-	long m_req_proc;	i	/* pid for waiting task */
+	long m_req_proc;		/* pid for waiting task */
 	unsigned long m_timestamp;	/* the time we start to check */
 	BOOL m_activated;
 	long m_ret_val;			/* return value from signal */

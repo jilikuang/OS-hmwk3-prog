@@ -16,8 +16,7 @@
 
 /* LIST HEADs */
 /*****************************************************************************/
-static LIST_HEAD(event_list);
-static LIST_HEAD(user_list);
+static LIST_HEAD(g_event_list);
 
 /* MUTEX for data structure */
 /*****************************************************************************/
@@ -125,7 +124,7 @@ static BOOL alloc_event_id(unsigned int *ap_id)
 
 	while (true) {
 		
-		list_for_each_entry(iter, &event_list, m_event_list) {
+		list_for_each_entry(iter, &g_event_list, m_event_list) {
 			if (iter->m_eid == g_lastId) {
 				found = M_TRUE;
 				break;
@@ -155,10 +154,10 @@ static BOOL alloc_event_id(unsigned int *ap_id)
 struct acc_event_info *check_event_exist(int event_id){
 	struct acc_event_info *iter;
 	
-	if (list_empty(&event_list))
+	if (list_empty(&g_event_list))
 		return NULL;
 
-	list_for_each_entry(iter, &event_list, m_event_list) {
+	list_for_each_entry(iter, &g_event_list, m_event_list) {
 		if (iter->m_eid == event_id)
 			return iter;
 	}
@@ -258,7 +257,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	/* init with lock */
 	if (alloc_event_id(&(new_event->m_eid)) == M_TRUE) {
-		list_add_tail(&(new_event->m_event_list), &event_list);
+		list_add_tail(&(new_event->m_event_list), &g_event_list);
 		ret = new_event->m_eid;
 	} else {
 		ret = -ENOMEM;
@@ -372,9 +371,12 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
 	/* @lfred: it's just not impl */
 	struct dev_acceleration data;
+	struct acc_event_info *evt;
+	struct acc_user_info *task, *next_task;
+	struct acc_dev_info *p_data;
 	
 	long retval = 0;
-	int retDown = 0;
+	int retDown = 0, i = 0, matchCount = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
 
 	if (acceleration == NULL) {
@@ -405,6 +407,46 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 
 	/* step 2. check if any event is activated */
 	/* TODO: implement the algorithm */
+	/* for each event and each user, scan the queue */
+
+	list_for_each_entry(evt, &g_event_list, m_event_list) {
+		
+		/* iterate the task list */
+		list_for_each_entry_safe (
+			task, next_task, &(evt->m_wait_list), m_user_list) {
+			/* reset match counter */
+			matchCount = 0;
+			
+			for (	i = g_sensor_data.m_head; 
+				i<g_sensor_data.m_head; 
+				i = (i + 1)%WINDOW) {
+			
+				p_data = &(g_sensor_data.m_buf[i]);
+
+				/* check timestamp validity */
+				if (p_data->m_timestamp < task->m_timestamp)
+					continue;
+
+				/* match the count */
+				if (p_data->m_x	+ p_data->m_y + p_data->m_z > NOISE)
+					continue;
+				else {
+					if (	p_data->m_x >= evt->m_motion.dlt_x &&
+						p_data->m_y >= evt->m_motion.dlt_y &&
+						p_data->m_z >= evt->m_motion.dlt_z) {
+					
+						matchCount++;
+					}
+				}
+			}
+
+			if (matchCount > evt->m_motion.frq) {
+				/* wake up the task */
+				list_del (&(task->m_user_list));
+				up(&(task->m_thrd_sema));
+			}
+		}
+	}
 
 	mutex_unlock(&data_mtx);
 
