@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/kfifo.h>
+#include <linux/time.h>
 
 #include <linux/types.h>
 #include <linux/uaccess.h>
@@ -36,9 +37,9 @@ static struct acc_fifo g_sensor_data;
 /* This is BUGGY - we should use a monotonic time instead */
 static unsigned int get_current_time(void)
 {
-	struct timeval tv;
-	do_gettimeofday(&tv);
-	return tv.tv_usec + (tv.tv_sec)*1000000;
+	struct timespec ts;
+	get_monotonic_boottime(&ts);
+	return ts.tv_nsec/1000 + (ts.tv_sec)*1000000;
 }
 
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
@@ -509,3 +510,4 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 
 	return retval;
 }
+
