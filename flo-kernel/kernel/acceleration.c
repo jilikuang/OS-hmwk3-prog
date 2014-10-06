@@ -252,6 +252,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	
 	if (ret != 0) {
 		PRINTK("Failed to obtain event list lock - bye");
+		kfree(new_event);
 		return ret;
 	}
 
@@ -400,6 +401,8 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		return retDown;
 	}
 
+	/* CRITICAL SECTION */
+	/*********************************************************************/
 	/* init the fifo: it's okay to call multi times */
 	init_fifo();
 	
@@ -458,6 +461,8 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		}
 	}
 
+	/* EXIT CRITICAL SECTION */
+	/*********************************************************************/
 	mutex_unlock(&data_mtx);
 
 	PRINTK("accevt_signal: %ld\n", retval);
@@ -500,7 +505,6 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 	}
 
 	mutex_unlock(&data_mtx);
-
 	kfree(evt);
 
 	return retval;
