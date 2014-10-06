@@ -374,6 +374,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	struct acc_event_info *evt;
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
+	struct acc_motion *p_mot;
 	
 	long retval = 0;
 	int retDown = 0, i = 0, matchCount = 0;
@@ -410,15 +411,18 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/* for each event and each user, scan the queue */
 
 	list_for_each_entry(evt, &g_event_list, m_event_list) {
-		
+	
+		p_mot = &(evt->m_motion);	
+	
 		/* iterate the task list */
 		list_for_each_entry_safe (
 			task, next_task, &(evt->m_wait_list), m_user_list) {
 			/* reset match counter */
 			matchCount = 0;
-			
-			for (	i = g_sensor_data.m_head; 
-				i<g_sensor_data.m_head; 
+		
+			/* iterate the buffer */	
+			for (	i =  g_sensor_data.m_head; 
+				i != g_sensor_data.m_tail; 
 				i = (i + 1)%WINDOW) {
 			
 				p_data = &(g_sensor_data.m_buf[i]);
@@ -430,18 +434,16 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				/* match the count */
 				if (p_data->m_x	+ p_data->m_y + p_data->m_z > NOISE)
 					continue;
-				else {
-					if (	p_data->m_x >= evt->m_motion.dlt_x &&
-						p_data->m_y >= evt->m_motion.dlt_y &&
-						p_data->m_z >= evt->m_motion.dlt_z) {
-					
-						matchCount++;
-					}
-				}
+				
+				/* do the real comparison */
+				if (	p_data->m_x >= p_mot->dlt_x &&
+					p_data->m_y >= p_mot->dlt_y &&
+					p_data->m_z >= p_mot->dlt_z)
+					matchCount++;
 			}
 
-			if (matchCount > evt->m_motion.frq) {
-				/* wake up the task */
+			/* remove from the list && wake up the task */
+			if (matchCount >= p_mot->frq) {
 				list_del (&(task->m_user_list));
 				up(&(task->m_thrd_sema));
 			}
