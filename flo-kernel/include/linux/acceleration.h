@@ -79,6 +79,8 @@ struct acc_user_info {
 
 struct acc_fifo {
 	struct acc_dev_info m_buf[WINDOW];
+	struct acc_dev_info m_prev;
+
 	int m_head;	/* current head */
 	int m_tail;	/* next to enqueue */
 	int m_capacity;
