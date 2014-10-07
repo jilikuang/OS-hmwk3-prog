@@ -43,8 +43,9 @@ static unsigned int get_current_time(void)
 }
 
 /* Instead of doing modular, we use if statment */
-static int modular_inc(int n){
-	if (n >= WINDOW - 1)
+static int modular_inc(int n)
+{
+	if (n == WINDOW - 1)
 		return 0;
 	else
 		return (n+1);
@@ -81,6 +82,9 @@ static void enqueue_data(
 
 	struct acc_dev_info *p_data, *p_temp;
 	struct dev_acceleration *p_prev;
+
+	/* default to false */
+	*p_valid_out = M_FALSE;
 	
 	if (g_init == M_FALSE) {
 		PRINTK("FIFO not inited.");
@@ -102,8 +106,6 @@ static void enqueue_data(
 
 			/* age the old head */
 			g_sensor_data.m_head = modular_inc(g_sensor_data.m_head);					
-		} else {
-			*p_valid_out = M_FALSE;
 		}
 	}
 
