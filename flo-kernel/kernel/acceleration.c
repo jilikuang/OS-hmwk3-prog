@@ -74,9 +74,12 @@ static BOOL init_fifo(void)
 
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
 /* !!! called with DATA_MTX section ONLY !!!*/
-static void enqueue_data(struct dev_acceleration *in) {
+static void enqueue_data(
+	struct dev_acceleration *in, 
+	struct acc_dev_info *out,
+	BOOL *p_valid_out) {
 
-	struct acc_dev_info *p_data;
+	struct acc_dev_info *p_data, *p_temp;
 	struct dev_acceleration *p_prev;
 	
 	if (g_init == M_FALSE) {
@@ -88,8 +91,20 @@ static void enqueue_data(struct dev_acceleration *in) {
 		g_sensor_data.m_head++;
 	else {
 		/* advance the head, tail is coming */
-		if (g_sensor_data.m_head == g_sensor_data.m_tail)
-			g_sensor_data.m_head = modular_inc(g_sensor_data.m_head);
+		if (g_sensor_data.m_head == g_sensor_data.m_tail) {
+			
+			/* return the aged head */
+			p_temp = &(g_sensor_data.m_buf[g_sensor_data.m_head]);
+			out->m_x = p_temp->m_x;
+			out->m_y = p_temp->m_y;
+			out->m_z = p_temp->m_z;
+			*p_valid_out = M_TRUE;
+
+			/* age the old head */
+			g_sensor_data.m_head = modular_inc(g_sensor_data.m_head);					
+		} else {
+			*p_valid_out = M_FALSE;
+		}
 	}
 
 	p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail]);
@@ -313,6 +328,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	new_user->m_timestamp	= get_current_time();
 	new_user->m_activated	= M_TRUE;
 	new_user->m_ret_val	= 0;
+	new_user->m_validCnt	= 0;
 	sema_init(&new_user->m_thrd_sema, 1);
 	semRet = down_interruptible(&new_user->m_thrd_sema);
 	
@@ -383,11 +399,13 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
 	/* @lfred: it's just not impl */
 	struct dev_acceleration data;
+	struct acc_dev_info aged_head;
 	struct acc_event_info *evt;
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
 	struct acc_motion *p_mot;
-	
+
+	BOOL is_valid;	
 	long retval = 0;
 	int retDown = 0, i = 0, matchCount = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
@@ -418,7 +436,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/*		do cleanup as well 	*/
 
 	/* step 1. put data into the Q */
-	enqueue_data(&data);
+	enqueue_data(&data, &aged_head, &is_valid);
 
 	/* step 2. check if any event is activated */
 	/* TODO: implement the algorithm */
@@ -434,6 +452,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			
 			if (task->m_activated == M_FALSE)
 				continue;
+
+			/* TODO: 					*/ 
+			/* new algo using aged_head and is_valid 	*/
+			/* we don not to iterate everything		*/
 
 			/* reset match counter */
 			matchCount = 0;

@@ -72,7 +72,8 @@ struct acc_user_info {
 	unsigned long m_timestamp;	/* the time we start to check */
 	BOOL m_activated;
 	long m_ret_val;			/* return value from signal */
-	
+	unsigned int m_validCnt;	/* accounting info */
+		
 	/* control locals */
 	struct semaphore m_thrd_sema;
 	struct list_head m_user_list;
