@@ -102,6 +102,7 @@ static void enqueue_data(
 			out->m_x = p_temp->m_x;
 			out->m_y = p_temp->m_y;
 			out->m_z = p_temp->m_z;
+			out->m_timestamp = p_temp->m_timestamp;
 			*p_valid_out = M_TRUE;
 
 			/* age the old head */
