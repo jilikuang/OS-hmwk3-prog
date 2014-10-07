@@ -42,6 +42,14 @@ static unsigned int get_current_time(void)
 	return ts.tv_nsec/1000 + (ts.tv_sec)*1000000;
 }
 
+/* Instead of doing modular, we use if statment */
+static int modular_inc(int n){
+	if (n >= WINDOW - 1)
+		return 0;
+	else
+		return (n+1);
+}
+
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
 /* !!! called with DATA_MTX section ONLY !!!*/
 static BOOL init_fifo(void)
@@ -81,11 +89,10 @@ static void enqueue_data(struct dev_acceleration *in) {
 	else {
 		/* advance the head, tail is coming */
 		if (g_sensor_data.m_head == g_sensor_data.m_tail)
-			g_sensor_data.m_head =
-				(g_sensor_data.m_head + 1) % WINDOW;
+			g_sensor_data.m_head = modular_inc(g_sensor_data.m_head);
 	}
 
-	p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail]);	
+	p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail]);
 	p_prev = &(g_sensor_data.m_prev);
 	
 	/* store the diff */
@@ -111,7 +118,7 @@ static void enqueue_data(struct dev_acceleration *in) {
 	p_data->m_timestamp = get_current_time();
 
 	/* advance the tail */
-	g_sensor_data.m_tail = (g_sensor_data.m_tail + 1) % WINDOW;	
+	g_sensor_data.m_tail = modular_inc(g_sensor_data.m_tail);	
 }
 
 /* !!! NOT THREAD-SAFE !!! */
@@ -434,8 +441,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			/* iterate the buffer */	
 			for (	i =  g_sensor_data.m_head; 
 				i != g_sensor_data.m_tail; 
-				i = (i + 1)%WINDOW) {
-			
+				i = modular_inc(i)) {
 				p_data = &(g_sensor_data.m_buf[i]);
 
 				/* check timestamp validity */
@@ -510,4 +516,5 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 
 	return retval;
 }
+
 
