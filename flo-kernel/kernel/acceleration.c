@@ -474,7 +474,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 					continue;
 
 				/* match the count */
-				if (p_data->m_x	+ p_data->m_y + p_data->m_z > NOISE)
+				if (p_data->m_x	+ p_data->m_y + p_data->m_z < NOISE)
 					continue;
 				
 				/* do the real comparison */
