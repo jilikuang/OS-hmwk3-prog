@@ -8,6 +8,7 @@
 #define BOOL		int
 #define M_TRUE		(1)
 #define	M_FALSE		(0)
+#define	M_ZERO		(0)
 
 /* Define time interval (ms) */
 #define TIME_INTERVAL	(200)
@@ -46,9 +47,9 @@ struct acc_motion {
 				   > NOISE */
 };
 
-/* !!! THE SIZE HAS TO BE 16 BYTEs HERE 	*/
-/* Self-defined data structure 			*/
-/* data stored in the kfifo 			*/
+/* !!! THE SIZE HAS TO BE 16 BYTEs HERE		*/
+/* Self-defined data structure			*/
+/* data stored in the kfifo			*/
 struct acc_dev_info {
 	unsigned int m_x;
 	unsigned int m_y;
@@ -67,13 +68,13 @@ struct acc_event_info {
 
 /* created when acc_wait is called */
 struct acc_user_info {
-	
+
 	long m_req_proc;		/* pid for waiting task */
 	unsigned long m_timestamp;	/* the time we start to check */
 	BOOL m_activated;
 	long m_ret_val;			/* return value from signal */
 	unsigned int m_validCnt;	/* accounting info */
-		
+
 	/* control locals */
 	struct semaphore m_thrd_sema;
 	struct list_head m_user_list;
