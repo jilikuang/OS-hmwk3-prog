@@ -2,12 +2,10 @@ TARGET = test_shake
 SOURCES = detect_shake.c
 OBJECTS = $(SOURCES:%.c=%.o)
 
-CFLAGS = -g -O2 -Wall
-LDFLAGS =
+CFLAGS = -g -O2 -Wall -static
+LDFLAGS = -static
 CC = arm-none-linux-gnueabi-gcc
 LD = arm-none-linux-gnueabi-ld
-"CC = gcc
-"LD = ld
 
 default: $(SOURCES) $(TARGET)
 

@@ -76,10 +76,10 @@ static int configure_custom(struct test_setting *set, int argc, char **argv)
 		set->dlt_x.min = strtol(argv[2], &exit, 10);
 		set->dlt_x.max = strtol(argv[3], &exit, 10);
 		if (set->dlt_x.max < set->dlt_x.min) {
-			printf("Invalid dlt_max\n");
+			printf("Test: Invalid dlt_max\n");
 			return -1;
 		} else if (set->dlt_x.max == set->dlt_x.min) {
-			printf("dlt_num enforced to 1\n");
+			printf("Test: dlt_num enforced to 1\n");
 			set->dlt_x.num = 1;
 		}
 	}
@@ -89,10 +89,10 @@ static int configure_custom(struct test_setting *set, int argc, char **argv)
 		set->dlt_y.min = strtol(argv[5], &exit, 10);
 		set->dlt_y.max = strtol(argv[6], &exit, 10);
 		if (set->dlt_y.max < set->dlt_y.min) {
-			printf("Invalid dlt_max\n");
+			printf("Test: Invalid dlt_max\n");
 			return -1;
 		} else if (set->dlt_y.max == set->dlt_y.min) {
-			printf("dlt_num enforced to 1\n");
+			printf("Test: dlt_num enforced to 1\n");
 			set->dlt_y.num = 1;
 		}
 	}
@@ -102,31 +102,31 @@ static int configure_custom(struct test_setting *set, int argc, char **argv)
 		set->dlt_z.min = strtol(argv[2], &exit, 10);
 		set->dlt_z.max = strtol(argv[3], &exit, 10);
 		if (set->dlt_z.max < set->dlt_z.min) {
-			printf("Invalid dlt_max\n");
+			printf("Test: Invalid dlt_max\n");
 			return -1;
 		} else if (set->dlt_z.max == set->dlt_z.min) {
-			printf("dlt_num enforced to 1\n");
+			printf("Test: dlt_num enforced to 1\n");
 			set->dlt_z.num = 1;
 		}
 	}
 
 	if ((set->dlt_x.num + set->dlt_y.num + set->dlt_z.num) == 0) {
-		printf("Invalid setting: dlt_num cannot be all zeros\n");
+		printf("Test: Invalid setting: dlt_num cannot be all zeros\n");
 		return -1;
 	}
 
 	set->frq.num = strtol(argv[4], &exit, 10);
 	if (set->frq.num == 0) {
-		printf("Invalid setting: frq must be assigned\n");
+		printf("Test: Invalid setting: frq must be assigned\n");
 		return -1;
 	}
 	set->frq.min = strtol(argv[5], &exit, 10);
 	set->frq.max = strtol(argv[6], &exit, 10);
 	if (set->frq.max < set->frq.min) {
-		printf("Invalid frq_max\n");
+		printf("Test: Invalid frq_max\n");
 		return -1;
 	} else if (set->frq.max == set->frq.min) {
-		printf("frq_num enforced to 1\n");
+		printf("Test: frq_num enforced to 1\n");
 		set->frq.num = 1;
 	}
 
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
 		printf("argv[%d] = %s\n", i, argv[i]);
 #endif
 	if (argc < 7) {
-		printf("Insufficient input. Use default setting\n");
+		dbg("Test: Insufficient input. Use default setting\n");
 		configure_default(&setting);
 	} else {
 		retval = configure_custom(&setting, argc, argv);
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
 
 	/* Set up environment variables */
 
-	dbg("%d starts to dispatch shake detection\n", getpid());
+	dbg("Test: %d starts to dispatch shake detection\n", getpid());
 
 	/* Fork child to detect */
 	{
@@ -195,13 +195,18 @@ int main(int argc, char **argv)
 		motion.dlt_z = 0;
 		motion.frq = setting.frq.min;
 		event_id = syscall(__NR_accevt_create, &motion);
+		dbg("Test: Created event %d - %d %d %d %d\n", event_id,
+				motion.dlt_x, motion.dlt_y,
+				motion.dlt_z, motion.frq);
 		pid = fork();
 		if (pid == 0) {
+			dbg("Test: Wait on event %d\n", event_id);
 			retval = syscall(__NR_accevt_wait, event_id);
 			printf("%d detected a shake\n", getpid());
-			return retval;
+			dbg("Test: Destroy event %d\n", event_id);
+			retval = syscall(__NR_accevt_destroy, event_id);
 		} else if (pid > 0) {
-			while (wait(NULL) > 0) ;
+			while (wait(NULL) >= 0) ;
 		} else {
 			retval = pid;
 		}
