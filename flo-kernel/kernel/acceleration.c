@@ -308,7 +308,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	mutex_unlock(&data_mtx);
 
-	if (ret != 0)
+	if (ret < 0)
 		kfree(new_event);
 
 	PRINTK("accevt_create return: %ld\n", ret);
