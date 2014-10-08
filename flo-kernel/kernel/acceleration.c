@@ -273,8 +273,10 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	/* create the user info memory */
 	new_event = kmalloc(szMotion, GFP_ATOMIC);
 
-	if (new_event == NULL)
+	if (new_event == NULL) {
+		PRINTK("No new_event!!!!\n");
 		return -ENOMEM;
+	}
 
 	/* init without lock */
 	memcpy(&new_event->m_motion, &s_kData, sizeof(struct acc_motion));
@@ -299,6 +301,8 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 		list_add_tail(&(new_event->m_event_list), &g_event_list);
 		ret = new_event->m_eid;
 	} else {
+		PRINTK("alloc_event_id != M_TRUE!!!!\n");
+		kfree(new_event);
 		ret = -ENOMEM;
 	}
 
@@ -306,6 +310,8 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	if (ret != 0)
 		kfree(new_event);
+
+	PRINTK("accevt_create return: %ld\n", ret);
 
 	return ret;
 }
@@ -400,7 +406,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 
 	kfree(new_user);
 
-	PRINTK("accevt_wait return: %d\n", retval);
+	PRINTK("accevt_wait return: %ld\n", retval);
 	return retval;
 }
 
