@@ -186,30 +186,60 @@ int main(int argc, char **argv)
 
 	/* Fork child to detect */
 	{
+		int i, j;
+		int dlt, frq;
 		pid_t pid;
-		int event_id;
+		unsigned int *evt_id;
 		struct acc_motion motion;
 
-		motion.dlt_x = setting.dlt_x.min;
-		motion.dlt_y = 0;
-		motion.dlt_z = 0;
-		motion.frq = setting.frq.min;
-		event_id = syscall(__NR_accevt_create, &motion);
-		dbg("Test: Created event %d - %d %d %d %d\n", event_id,
-				motion.dlt_x, motion.dlt_y,
-				motion.dlt_z, motion.frq);
-		pid = fork();
-		if (pid == 0) {
-			dbg("Test: Wait on event %d\n", event_id);
-			retval = syscall(__NR_accevt_wait, event_id);
-			printf("%d detected a shake\n", getpid());
-			dbg("Test: Destroy event %d\n", event_id);
-			retval = syscall(__NR_accevt_destroy, event_id);
-		} else if (pid > 0) {
-			while (wait(NULL) >= 0) ;
-		} else {
-			retval = pid;
+		/* evt_id_arr = malloc(sizeof(int) * setting.proc_num); */
+		evt_id = malloc(sizeof(int) * setting.dlt_x.num *
+				setting.frq.num);
+		dbg("Test: evt_id =  %X\n", (unsigned int) evt_id);
+		if (evt_id == NULL)
+			return -1;
+
+		/* X */
+		dbg("Test: Set up X-axis test patern\n");
+		for (i = 0; i < setting.dlt_x.num; i++) {
+			dlt = setting.dlt_x.min + i * setting.dlt_x.step;
+			dbg("Test: dlt_x = %d\n", dlt);
+			for (j = 0; j < setting.frq.num; j++) {
+				frq = setting.frq.min + j * setting.frq.step;
+				dbg("Test: frq = %d\n", frq);
+				motion.dlt_x = dlt;
+				motion.dlt_y = 0;
+				motion.dlt_z = 0;
+				motion.frq = frq;
+				dbg("Test: check %d\n", i*setting.frq.num+j);
+				evt_id[i * setting.frq.num + j] =
+					syscall(__NR_accevt_create, &motion);
+				dbg("Test: Created event %d - %d %d %d %d\n",
+					evt_id[i * setting.frq.num + j],
+					motion.dlt_x, motion.dlt_y,
+					motion.dlt_z, motion.frq);
+			}
 		}
+
+		dbg("Test: Fork children to wait on events\n");
+		for (i = 0; i < setting.dlt_x.num * setting.frq.num; i++) {
+			pid = fork();
+			if (pid == 0) {
+				dbg("Test: %d Wait on event %d\n",
+						getpid(), evt_id[i]);
+				retval = syscall(__NR_accevt_wait, evt_id[i]);
+				printf("%d detected a shake\n", getpid());
+				dbg("Test: Destroy event %d\n", evt_id[i]);
+				retval = syscall(__NR_accevt_destroy, evt_id[i]);
+				return retval;
+			} else if (pid < 0) {
+				retval = pid;
+			}
+		}
+
+		while (wait(NULL) >= 0)
+			dbg("Test: %d all children are waited\n", getpid());
+
 	}
 
 	return retval;
