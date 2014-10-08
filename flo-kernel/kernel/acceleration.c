@@ -51,6 +51,13 @@ static int modular_inc(int n)
 	return (n+1);
 }
 
+static int modular_dec(int n)
+{
+	if (n == 0)
+		return WINDOW;
+	return (n-1);
+}
+
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
 /* !!! called with DATA_MTX section ONLY !!!*/
 static BOOL init_fifo(void)
@@ -500,7 +507,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				up(&(task->m_thrd_sema));
 			}
 #else
-			p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail-1]);
+			p_data = &(g_sensor_data.m_buf[modular_dec(g_sensor_data.m_tail)]);
 
 			if (	is_valid && 
 				aged_head.m_timestamp > task->m_timestamp &&
@@ -578,6 +585,7 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 
 	return retval;
 }
+
 
 
 
