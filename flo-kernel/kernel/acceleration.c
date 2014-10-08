@@ -502,19 +502,20 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 #else
 			p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail-1]);
 
-			if (is_valid && aged_head.m_x >= p_mot->dlt_x &&
+			if (	is_valid && 
+				aged_head.m_timestamp > task->m_timestamp &&
+				aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
-				aged_head.m_z >= p_mot->dlt_z &&
-				aged_head.m_timestamp > task->m_timestamp){
-
-				task->m_validCnt = task->m_validCnt - 1;
+				aged_head.m_z >= p_mot->dlt_z) {
+				
+				task->m_validCnt--;
 			}
 
-			if (p_data->m_x >= p_mot->dlt_x &&
+			if (	p_data->m_x >= p_mot->dlt_x &&
 				p_data->m_y >= p_mot->dlt_y &&
 				p_data->m_z >= p_mot->dlt_z){
 
-				task->m_validCnt = task->m_validCnt + 1;
+				task->m_validCnt++;
 			}
 
 			/* remove from the list && wake up the task */
