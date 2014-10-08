@@ -500,7 +500,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				up(&(task->m_thrd_sema));
 			}
 #else
-			p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail]);
+			p_data = &(g_sensor_data.m_buf[g_sensor_data.m_tail-1]);
 
 			if (is_valid && aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
