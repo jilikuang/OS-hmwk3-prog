@@ -266,6 +266,9 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	}
 
 	PRINTK("accevt_create\n");
+	PRINTK("Received motion: %d %d %d %d\n",
+			s_kData.dlt_x, s_kData.dlt_y,
+			s_kData.dlt_z, s_kData.frq);
 
 	/* create the user info memory */
 	new_event = kmalloc(szMotion, GFP_ATOMIC);
@@ -396,6 +399,8 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	}
 
 	kfree(new_user);
+
+	PRINTK("accevt_wait return: %d\n", retval);
 	return retval;
 }
 
@@ -432,6 +437,9 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		PRINTK("dude - failed to copy. 88\n");
 		return -EFAULT;
 	}
+
+	PRINTK("accevt_signal\n");
+	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
 
 	aged_head.m_x = 0;
 	aged_head.m_y = 0;
@@ -541,7 +549,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/*********************************************************************/
 	mutex_unlock(&data_mtx);
 
-	PRINTK("accevt_signal: %ld\n", retval);
+	PRINTK("accevt_signal return: %ld\n", retval);
 	return retval;
 }
 
