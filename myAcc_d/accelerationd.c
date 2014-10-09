@@ -40,6 +40,7 @@
 #endif
 
 static int effective_sensor;
+static int g_interval;
 
 /* helper functions which you should use */
 static int open_sensors(struct sensors_module_t **hw_module,
@@ -101,6 +102,16 @@ void create_my_daemon()
    where indicated */
 int main(int argc, char **argv)
 {
+	if(argc == 1){
+		/* use default TIME_INTERVAL*/
+		g_interval = TIME_INTERVAL;
+	}else if(argc == 2){
+		/* use user defined TIME_INTERVAL*/
+		g_interval = atoi(argv[1]);
+
+	}else{
+		printf("Don't put two value in argv\n");
+	}
 	struct sensors_module_t *sensors_module = NULL;
 	struct sensors_poll_device_t *sensors_device = NULL;
 	struct dev_acceleration data;
@@ -124,7 +135,7 @@ int main(int argc, char **argv)
 		syscall(__NR_accevt_signal, &data); 
 
 		/* sleep in us, remember to switch */
-		usleep(TIME_INTERVAL * 1000);	
+		usleep(g_interval * 1000);	
 	}
 
 	return EXIT_SUCCESS;
@@ -195,3 +206,4 @@ static void enumerate_sensors(const struct sensors_module_t *sensors)
 
                 }
 }
+
