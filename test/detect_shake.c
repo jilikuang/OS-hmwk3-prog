@@ -19,7 +19,7 @@
 #define __NR_accevt_wait	380
 #define __NR_accevt_destroy	382
 #define INIT_FRQ		20
-#define round(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
+#define round(x) ((x) >= 0?(long)((x)+0.5):(long)((x)-0.5))
 
 
 struct acc_motion {
@@ -44,8 +44,8 @@ struct test_setting {
 	struct item_setting frq;
 };
 
-static void configure_motion(struct acc_motion *ver, 
-	struct acc_motion *hor, struct acc_motion *shake){
+static void configure_motion(struct acc_motion *ver,
+	struct acc_motion *hor, struct acc_motion *shake) {
 	/*vertical: high tolerance on y, low tolerance on others*/
 	ver->dlt_x = 1;
 	ver->dlt_y = 5;
@@ -59,7 +59,7 @@ static void configure_motion(struct acc_motion *ver,
 	hor->frq = INIT_FRQ;
 
 	/*shakeup: mid-high tolerance on x,y,z*/
- 	shake->dlt_x = 2;
+	shake->dlt_x = 2;
 	shake->dlt_y = 2;
 	shake->dlt_z = 2;
 	shake->frq = INIT_FRQ;
@@ -81,11 +81,12 @@ int main(int argc, char **argv)
 		float weight = 0.5;
 		pid_t pid;
 
-		int all_steps = hor_steps + ver_steps +shake_steps;
+		int all_steps = hor_steps + ver_steps + shake_steps;
 		struct acc_motion ver;
-		struct acc_motion hor; 
+		struct acc_motion hor;
 		struct acc_motion shake;
-		configure_motion(&ver,&hor,&shake);
+
+		configure_motion(&ver, &hor, &shake);
 		unsigned int *evt_id;
 		int i;
 
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
 
 		/* create vertical, horizonal, and shake shakeups */
 		dbg("Test: Set up vertical test patern\n");
-		for(i = 0; i < ver_steps; i++){
+		for (i = 0; i < ver_steps; i++) {
 			evt_id[i] = syscall(__NR_accevt_create, &ver);
 			dbg("Test: Created event %d - %d %d %d %d\n",
 			evt_id[i],
@@ -109,7 +110,7 @@ int main(int argc, char **argv)
 		}
 
 		dbg("Test: Set up horizonal test patern\n");
-		for(i = ver_steps; i < hor_steps + ver_steps; i++){
+		for (i = ver_steps; i < hor_steps + ver_steps; i++) {
 			evt_id[i] = syscall(__NR_accevt_create, &hor);
 			dbg("Test: Created event %d - %d %d %d %d\n",
 			evt_id[i],
@@ -122,7 +123,7 @@ int main(int argc, char **argv)
 		}
 
 		dbg("Test: Set up shake test patern\n");
-		for(i = hor_steps + ver_steps; i < all_steps; i++){
+		for (i = hor_steps + ver_steps; i < all_steps; i++) {
 			evt_id[i] = syscall(__NR_accevt_create, &shake);
 			dbg("Test: Created event %d - %d %d %d %d\n",
 			evt_id[i],
@@ -144,13 +145,12 @@ int main(int argc, char **argv)
 				retval = syscall(__NR_accevt_wait, evt_id[i]);
 				retval = syscall(__NR_accevt_wait, evt_id[i]);
 
-				if(i < ver_steps){
+				if (i < ver_steps)
 					printf("Process ID: %d detected a vertical shake event\n", getpid());
-				}else if( i < hor_steps + ver_steps){
+				else if (i < hor_steps + ver_steps)
 					printf("Process ID: %d detected a horizontal shake event\n", getpid());
-				}else if( i < all_steps){
+				else if (i < all_steps)
 					printf("Process ID: %d detected a mix shake event\n", getpid());
-				}
 				dbg("Test: Destroy event %d\n", evt_id[i]);
 				retval = syscall(__NR_accevt_destroy, evt_id[i]);
 				return retval;
