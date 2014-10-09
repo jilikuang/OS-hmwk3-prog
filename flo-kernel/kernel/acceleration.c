@@ -521,20 +521,21 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				up(&(task->m_thrd_sema));
 			}
 #else
-			p_data = &(g_sensor_data.m_buf[modular_dec(g_sensor_data.m_tail)]);
+			p_data = &(g_sensor_data.m_buf[modular_dec(
+						g_sensor_data.m_tail)]);
 
-			if (	is_valid && 
+			if (is_valid &&
 				aged_head.m_timestamp > task->m_timestamp &&
 				aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
 				aged_head.m_z >= p_mot->dlt_z) {
-				
+
 				task->m_validCnt--;
 			}
 
-			if (	p_data->m_x >= p_mot->dlt_x &&
+			if (p_data->m_x >= p_mot->dlt_x &&
 				p_data->m_y >= p_mot->dlt_y &&
-				p_data->m_z >= p_mot->dlt_z){
+				p_data->m_z >= p_mot->dlt_z) {
 
 				task->m_validCnt++;
 			}
