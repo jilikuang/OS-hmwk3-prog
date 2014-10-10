@@ -494,7 +494,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			/* TODO:					*/
 			/* new algo using aged_head and is_valid	*/
 			/* we don not to iterate everything		*/
-#if W4118_NAIVE_METHOD
+#ifdef W4118_NAIVE_METHOD
 			/* reset match counter */
 			matchCount = 0;
 
