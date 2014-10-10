@@ -7,7 +7,7 @@ TARGET_DIR = /data/misc
 # of your sources files (make sure
 # to put a complete relative path)
 SOURCES = myAccd.c
-# SOURCES = accelerationd.c
+#SOURCES = accelerationd.c
 
 CRUNTIME = crtbegin_dynamic.S \
            crtend.S

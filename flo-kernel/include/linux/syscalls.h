@@ -861,7 +861,8 @@ asmlinkage long sys_process_vm_writev(pid_t pid,
 				      unsigned long flags);
 
 /* System calls of hw3 */
-asmlinkage long sys_set_acceleration(struct dev_acceleration __user *acceleration);
+asmlinkage long sys_set_acceleration(struct dev_acceleration __user
+		*acceleration);
 asmlinkage long sys_accevt_create(struct acc_motion __user *acceleration);
 asmlinkage long sys_accevt_wait(int event_id);
 asmlinkage long sys_accevt_signal(struct dev_acceleration __user *acceleration);

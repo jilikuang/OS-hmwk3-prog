@@ -65,6 +65,21 @@ static void configure_motion(struct acc_motion *ver,
 	shake->frq = INIT_FRQ;
 }
 
+static inline void print_vshake(void)
+{
+	printf("Process ID: %d detected a vertical shake event\n", getpid());
+}
+
+static inline void print_hshake(void)
+{
+	printf("Process ID: %d detected a horizontal shake event\n", getpid());
+}
+
+static inline void print_shake(void)
+{
+	printf("Process ID: %d detected a mix shake event\n", getpid());
+}
+
 int main(int argc, char **argv)
 {
 	int retval = 0;
@@ -146,13 +161,14 @@ int main(int argc, char **argv)
 				retval = syscall(__NR_accevt_wait, evt_id[i]);
 
 				if (i < ver_steps)
-					printf("Process ID: %d detected a vertical shake event\n", getpid());
+					print_vshake();
 				else if (i < hor_steps + ver_steps)
-					printf("Process ID: %d detected a horizontal shake event\n", getpid());
+					print_hshake();
 				else if (i < all_steps)
-					printf("Process ID: %d detected a mix shake event\n", getpid());
+					print_shake();
 				dbg("Test: Destroy event %d\n", evt_id[i]);
-				retval = syscall(__NR_accevt_destroy, evt_id[i]);
+				retval = syscall(__NR_accevt_destroy,
+						evt_id[i]);
 				return retval;
 			} else if (pid < 0) {
 				retval = pid;

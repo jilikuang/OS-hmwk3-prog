@@ -149,9 +149,13 @@ int main(int argc, char **argv)
 static int open_sensors(struct sensors_module_t **mSensorModule,
 			struct sensors_poll_device_t **mSensorDevice)
 {
-   
+
 	int err = hw_get_module(SENSORS_HARDWARE_MODULE_ID,
-				     (hw_module_t const**)mSensorModule);
+					(hw_module_t const **)mSensorModule);
+	const struct sensor_t *list;
+	ssize_t count = (*mSensorModule)->get_sensors_list(
+			*mSensorModule, &list);
+	size_t i;
 
 	if (err) {
 		printf("couldn't load %s module (%s)",
@@ -171,10 +175,7 @@ static int open_sensors(struct sensors_module_t **mSensorModule,
 	if (!*mSensorDevice)
 		return -1;
 
-	const struct sensor_t *list;
-	ssize_t count = (*mSensorModule)->get_sensors_list(*mSensorModule, &list);
-	size_t i;
-	for (i=0 ; i<(size_t)count ; i++) {
+	for (i = 0 ; i < (size_t)count ; i++) {
 		(*mSensorDevice)->setDelay(*mSensorDevice, list[i].handle, 100);
 		(*mSensorDevice)->activate(*mSensorDevice, list[i].handle, 1);
 	}
@@ -186,6 +187,7 @@ static void enumerate_sensors(const struct sensors_module_t *sensors)
 {
 	int nr, s;
 	const struct sensor_t *slist = NULL;
+
 	if (!sensors)
 		printf("going to fail\n");
 
@@ -197,15 +199,15 @@ static void enumerate_sensors(const struct sensors_module_t *sensors)
 	}
 
 	for (s = 0; s < nr; s++) {
-		printf("%s (%s) v%d\n\tHandle:%d, type:%d, max:%0.2f, "
-			"resolution:%0.2f \n", slist[s].name, slist[s].vendor,
-			slist[s].version, slist[s].handle, slist[s].type,
+		printf("%s (%s) v%d\n", slist[s].name, slist[s].vendor,
+			slist[s].version);
+		printf("\tHandle:%d, type:%d, max:%0.2f, resolution:%0.2f\n",
+			slist[s].handle, slist[s].type,
 			slist[s].maxRange, slist[s].resolution);
 
 		/* Awful hack to make it work on emulator */
 		if (slist[s].type == 1 && slist[s].handle == 0)
 			effective_sensor = 0; /*the sensor ID*/
 
-                }
+	}
 }
-
