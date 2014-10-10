@@ -277,7 +277,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	}
 
 	/* create the user info memory */
-	new_event = kmalloc(szMotion, GFP_ATOMIC);
+	new_event = kmalloc(szMotion, GFP_KERNEL);
 
 	if (new_event == NULL) {
 		PRINTK("No new_event!!!!\n");
@@ -346,7 +346,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	/* 4. start waiting				*/
 	/* 5. when waking up, do the cleaning		*/
 
-	new_user = kmalloc(sizeof(sz_user), GFP_ATOMIC);
+	new_user = kmalloc(sizeof(sz_user), GFP_KERNEL);
 	if (new_user == NULL)
 		return -ENOMEM;
 
