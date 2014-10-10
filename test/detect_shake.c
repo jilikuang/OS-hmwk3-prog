@@ -10,15 +10,15 @@
 #include <sys/wait.h>
 
 #if 1
-#define dbg	printf
+	#define dbg	printf
 #else
-#define dbg(...)
+	#define dbg(...)
 #endif
 
 #define __NR_accevt_create	379
 #define __NR_accevt_wait	380
 #define __NR_accevt_destroy	382
-#define INIT_FRQ		20
+#define INIT_FRQ			20
 #define round(x) ((x) >= 0?(long)((x)+0.5):(long)((x)-0.5))
 
 struct acc_motion {
@@ -31,21 +31,21 @@ struct acc_motion {
 static void configure_motion(struct acc_motion *ver,
 	struct acc_motion *hor, struct acc_motion *shake) {
 	/*vertical: high tolerance on y, low tolerance on others*/
-	ver->dlt_x = 1;
-	ver->dlt_y = 5;
-	ver->dlt_z = 1;
+	ver->dlt_x = 200;
+	ver->dlt_y = 700;
+	ver->dlt_z = 200;
 	ver->frq = INIT_FRQ;
 
 	/*horizontal: high tolerance on x, low tolerance on others*/
-	hor->dlt_x = 5;
-	hor->dlt_y = 1;
-	hor->dlt_z = 1;
+	hor->dlt_x = 700;
+	hor->dlt_y = 200;
+	hor->dlt_z = 200;
 	hor->frq = INIT_FRQ;
 
 	/*shakeup: mid-high tolerance on x,y,z*/
-	shake->dlt_x = 2;
-	shake->dlt_y = 2;
-	shake->dlt_z = 2;
+	shake->dlt_x = 600;
+	shake->dlt_y = 600;
+	shake->dlt_z = 600;
 	shake->frq = INIT_FRQ;
 }
 
@@ -68,10 +68,10 @@ int main(int argc, char **argv)
 {
 	int retval = 0;
 
-	int ver_steps = 2;
-	int hor_steps = 2;
-	int shake_steps = 2;
-	float weight = 0.5;
+	int ver_steps = 3;
+	int hor_steps = 3;
+	int shake_steps = 3;
+	float weight = 0.8;
 	pid_t pid;
 
 	int all_steps = hor_steps + ver_steps + shake_steps;
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 		shake.frq = round(shake.frq * weight);
 	}
 
-	/* detect events - each event now has 2 processes */
+	/* detect events */
 	dbg("Test: Fork children to wait on events\n");
 	for (i = 0; i < all_steps; i++) {
 		pid = fork();
@@ -150,9 +150,37 @@ int main(int argc, char **argv)
 		} else if (pid < 0) {
 			retval = pid;
 		}
+
+		/* Fork more child to detect events at a later time 
+		* Child processes comes in as we iterating the event 
+		* with a stepping time.
+		*/
+
+		usleep(500000*i*weight);
+		pid = fork();
+		if (pid == 0) {
+			dbg("Test: %d Wait on event %d\n",
+					getpid(), evt_id[i]);
+			retval = syscall(__NR_accevt_wait, evt_id[i]);
+
+			if (i < ver_steps)
+				print_vshake();
+			else if (i < hor_steps + ver_steps)
+				print_hshake();
+			else
+				print_shake();
+			dbg("Test: Destroy event %d\n", evt_id[i]);
+			retval = syscall(__NR_accevt_destroy,
+					evt_id[i]);
+			return retval;
+		} else if (pid < 0) {
+			retval = pid;
+		}
+
 	}
 
 	sleep(60);
+	printf("Time up!!\n");
 	/* Destroy all event */
 	for (i = 0; i < all_steps; i++)
 		retval = syscall(__NR_accevt_destroy, evt_id[i]);
@@ -162,3 +190,4 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+

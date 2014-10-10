@@ -69,9 +69,9 @@ static int poll_sensor_data(
 			buffer[i].acceleration.y,
 			buffer[i].acceleration.z);
 
-		out->x = buffer[i].acceleration.x;
-		out->y = buffer[i].acceleration.y;
-		out->z = buffer[i].acceleration.z;
+		out->x = buffer[i].acceleration.x * 100.0;
+		out->y = buffer[i].acceleration.y * 100.0;
+		out->z = buffer[i].acceleration.z * 100.0;
 	}
 	return 0;
 }
@@ -109,8 +109,10 @@ int main(int argc, char **argv)
 		g_interval = TIME_INTERVAL;
 	} else if (argc == 2) {
 		/* use user defined TIME_INTERVAL*/
-		g_interval = atoi(argv[1]);
-
+		if(!(g_interval = atoi(argv[1]))){
+			printf("Don't put garbage into argv\n");
+			return 0;
+		}
 	} else {
 		printf("Don't put two value in argv\n");
 	}

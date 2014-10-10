@@ -68,9 +68,9 @@ static int poll_sensor_data(
 			buffer[i].acceleration.y,
 			buffer[i].acceleration.z);
 
-		out->x = buffer[i].acceleration.x;
-		out->y = buffer[i].acceleration.y;
-		out->z = buffer[i].acceleration.z;
+		out->x = buffer[i].acceleration.x * 100.0;
+		out->y = buffer[i].acceleration.y * 100.0;
+		out->z = buffer[i].acceleration.z * 100.0;
 	}
 	return 0;
 }
