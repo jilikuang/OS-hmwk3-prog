@@ -270,6 +270,12 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 			s_kData.dlt_x, s_kData.dlt_y,
 			s_kData.dlt_z, s_kData.frq);
 
+	/* extra-safe check */
+	if (s_kData.frq == 0) {
+		PRINTK("Undefined behavior - 0 frequency !?\n");
+		return -EINVAL;
+	}
+
 	/* create the user info memory */
 	new_event = kmalloc(szMotion, GFP_ATOMIC);
 
