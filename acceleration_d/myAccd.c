@@ -177,7 +177,7 @@ static int open_sensors(struct sensors_module_t **mSensorModule,
 
 	for (i = 0 ; i < (size_t)count ; i++) {
 		(*mSensorDevice)->setDelay(*mSensorDevice, list[i].handle,
-				TIME_INTERVAL * 1000000);
+				g_interval * 1000000);
 		(*mSensorDevice)->activate(*mSensorDevice, list[i].handle, 1);
 	}
 
