@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 	sleep(60);
 	/* Destroy all event */
 	for (i = 0; i < all_steps; i++)
-		retval syscall(__NR_accevt_destroy, evt_id[i]);
+		retval = syscall(__NR_accevt_destroy, evt_id[i]);
 
 	while (wait(NULL) >= 0)
 		dbg("Test: %d all children are waited\n", getpid());
