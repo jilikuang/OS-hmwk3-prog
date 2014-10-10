@@ -54,7 +54,7 @@ static int modular_inc(int n)
 static int modular_dec(int n)
 {
 	if (n == 0)
-		return WINDOW;
+		return (WINDOW - 1);
 	return (n-1);
 }
 
@@ -185,7 +185,7 @@ static BOOL alloc_event_id(unsigned int *ap_id)
 
 /* !!! NOT THREAD-SAFE !!! */
 /* You have to acquire data_mtx to call this func */
-struct acc_event_info *check_event_exist(int event_id)
+static struct acc_event_info *check_event_exist(int event_id)
 {
 	struct acc_event_info *iter;
 
