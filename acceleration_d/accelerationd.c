@@ -14,7 +14,7 @@
 #include <sys/ioctl.h>
 #include <hardware/hardware.h>
 #include <hardware/sensors.h> /* <-- This is a good place to look! */
-#include "../flo-kernel/include/linux/akm8975.h" 
+#include "../flo-kernel/include/linux/akm8975.h"
 #include "acceleration.h"
 
 /* from sensors.c */
@@ -53,7 +53,8 @@ static int poll_sensor_data(
 	const size_t numEventMax = 16;
 	const size_t minBufferSize = numEventMax;
 	sensors_event_t buffer[minBufferSize];
-	ssize_t count = sensors_device->poll(sensors_device, buffer, minBufferSize);
+	ssize_t count = sensors_device->poll(sensors_device,
+			buffer, minBufferSize);
 	int i;
 
 	for (i = 0; i < count; ++i) {
@@ -61,10 +62,11 @@ static int poll_sensor_data(
 			continue;
 
 		/* At this point we should have valid data*/
-        	/* Scale it and pass it to kernel*/
-		dbg("Acceleration: x= %0.2f, y= %0.2f, "
-			"z= %0.2f\n", buffer[i].acceleration.x,
-			buffer[i].acceleration.y, buffer[i].acceleration.z);
+		/* Scale it and pass it to kernel*/
+		dbg("Acceleration: x= %0.2f, y= %0.2f, z= %0.2f\n",
+			buffer[i].acceleration.x,
+			buffer[i].acceleration.y,
+			buffer[i].acceleration.z);
 
 		out->x = buffer[i].acceleration.x;
 		out->y = buffer[i].acceleration.y;
@@ -73,7 +75,7 @@ static int poll_sensor_data(
 	return 0;
 }
 
-void create_my_daemon()
+static void create_my_daemon(void)
 {
 	pid_t child;
 	uid_t uid = getuid();
@@ -121,10 +123,10 @@ int main(int argc, char **argv)
 	printf("turn me into a daemon!\n");
 	while (1) {
 		poll_sensor_data(sensors_device, &data);
-		syscall(__NR_set_acceleration, &data); 
+		syscall(__NR_set_acceleration, &data);
 
 		/* sleep in us, remember to switch */
-		usleep(TIME_INTERVAL * 1000);	
+		usleep(TIME_INTERVAL * 1000);
 	}
 
 	return EXIT_SUCCESS;
