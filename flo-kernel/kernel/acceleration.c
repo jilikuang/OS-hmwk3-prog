@@ -54,7 +54,7 @@ static int modular_inc(int n)
 static int modular_dec(int n)
 {
 	if (n == 0)
-		return WINDOW;
+		return (WINDOW - 1);
 	return (n-1);
 }
 
@@ -185,7 +185,7 @@ static BOOL alloc_event_id(unsigned int *ap_id)
 
 /* !!! NOT THREAD-SAFE !!! */
 /* You have to acquire data_mtx to call this func */
-struct acc_event_info *check_event_exist(int event_id)
+static struct acc_event_info *check_event_exist(int event_id)
 {
 	struct acc_event_info *iter;
 
@@ -277,7 +277,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	}
 
 	/* create the user info memory */
-	new_event = kmalloc(szMotion, GFP_ATOMIC);
+	new_event = kmalloc(szMotion, GFP_KERNEL);
 
 	if (new_event == NULL) {
 		PRINTK("No new_event!!!!\n");
@@ -346,7 +346,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	/* 4. start waiting				*/
 	/* 5. when waking up, do the cleaning		*/
 
-	new_user = kmalloc(sizeof(sz_user), GFP_ATOMIC);
+	new_user = kmalloc(sizeof(sz_user), GFP_KERNEL);
 	if (new_user == NULL)
 		return -ENOMEM;
 
@@ -494,7 +494,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			/* TODO:					*/
 			/* new algo using aged_head and is_valid	*/
 			/* we don not to iterate everything		*/
-#if 0
+#ifdef W4118_NAIVE_METHOD
 			/* reset match counter */
 			matchCount = 0;
 
