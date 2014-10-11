@@ -9,6 +9,7 @@
 #include <linux/slab.h>
 #include <linux/kfifo.h>
 #include <linux/time.h>
+#include <linux/idr.h>
 
 #include <linux/types.h>
 #include <linux/uaccess.h>
@@ -28,9 +29,12 @@ static DEFINE_MUTEX(set_mutex);
 
 /* other data */
 /*****************************************************************************/
-static unsigned int g_lastId = M_ZERO;
+static struct idr g_event_idr;
 static BOOL g_init = M_FALSE;
+static BOOL g_event_init = M_FALSE;
+static BOOL is_valid = M_FALSE;
 static struct acc_fifo g_sensor_data;
+static struct acc_dev_info aged_head;
 
 /*****************************************************************************/
 /* Util function to get current time */
@@ -150,54 +154,102 @@ static void enqueue_data(
 /* !!! NOT THREAD-SAFE !!! */
 /* the function is used to allocate a new ID */
 /* NOTE: use with lock hold */
-static BOOL alloc_event_id(unsigned int *ap_id)
+static BOOL alloc_event_id(unsigned int *ap_id, struct acc_event_info *new_event)
 {
-	unsigned int startingId = g_lastId;
-	struct acc_event_info *iter;
-	BOOL found = M_FALSE;
+	int ret; 
+	do{
+		if(!idr_pre_get(&g_event_idr,GFP_KERNEL))
+			return -ENOSPC;
+		ret = idr_get_new(&g_event_idr, new_event, ap_id);
+	}while(ret == -EAGAIN);
 
-	while (true) {
+	return ret;
 
-		list_for_each_entry(iter, &g_event_list, m_event_list) {
-			if (iter->m_eid == g_lastId) {
-				found = M_TRUE;
-				break;
-			}
-		}
-
-		if (found == M_TRUE) {
-			/* the lastId is used */
-			g_lastId++;
-			found = M_FALSE;
-
-			if (g_lastId == startingId)
-				return M_FALSE;
-		} else {
-			/* the lastId is not used */
-			break;
-		}
-	}
-
-	*ap_id = g_lastId;
-	g_lastId++;
-	return M_TRUE;
 }
 
 /* !!! NOT THREAD-SAFE !!! */
 /* You have to acquire data_mtx to call this func */
-static struct acc_event_info *check_event_exist(int event_id)
+static int event_comparison(int id, void *ptr, void *data)
 {
-	struct acc_event_info *iter;
+	struct acc_event_info *evt;
+	struct acc_user_info *task, *next_task;
+	struct acc_dev_info *p_data;
+	struct acc_motion *p_mot;
 
-	if (list_empty(&g_event_list))
-		return NULL;
+	evt = ptr;
+	p_mot = &(evt->m_motion);
 
-	list_for_each_entry(iter, &g_event_list, m_event_list) {
-		if (iter->m_eid == event_id)
-			return iter;
+	/* iterate the task list */
+	list_for_each_entry_safe(
+		task, next_task, &(evt->m_wait_list), m_user_list) {
+
+		if (task->m_activated == M_FALSE)
+			continue;
+
+		/* TODO:					*/
+		/* new algo using aged_head and is_valid	*/
+		/* we don not to iterate everything		*/
+	#ifdef W4118_NAIVE_METHOD
+		/* reset match counter */
+		matchCount = 0;
+
+		/* iterate the buffer */
+		for (i =  g_sensor_data.m_head;
+			i != g_sensor_data.m_tail;
+			i = modular_inc(i)) {
+			p_data = &(g_sensor_data.m_buf[i]);
+
+			/* check timestamp validity */
+			if (p_data->m_timestamp < task->m_timestamp)
+				continue;
+
+			/* match the count */
+			if (p_data->m_x	+ p_data->m_y
+				+ p_data->m_z < NOISE)
+				continue;
+
+			/* do the real comparison */
+			if (p_data->m_x >= p_mot->dlt_x &&
+				p_data->m_y >= p_mot->dlt_y &&
+				p_data->m_z >= p_mot->dlt_z)
+				matchCount++;
+		}
+
+		/* remove from the list && wake up the task */
+		if (matchCount >= p_mot->frq) {
+			list_del(&(task->m_user_list));
+			task->m_activated = M_FALSE;
+			up(&(task->m_thrd_sema));
+		}
+	#else
+		p_data = &(g_sensor_data.m_buf[modular_dec(
+					g_sensor_data.m_tail)]);
+
+		if (is_valid &&
+			aged_head.m_timestamp > task->m_timestamp &&
+			aged_head.m_x >= p_mot->dlt_x &&
+			aged_head.m_y >= p_mot->dlt_y &&
+			aged_head.m_z >= p_mot->dlt_z) {
+
+			task->m_validCnt--;
+		}
+
+		if (p_data->m_x >= p_mot->dlt_x &&
+			p_data->m_y >= p_mot->dlt_y &&
+			p_data->m_z >= p_mot->dlt_z) {
+
+			task->m_validCnt++;
+		}
+
+		/* remove from the list && wake up the task */
+		if (task->m_validCnt >= p_mot->frq) {
+			list_del(&(task->m_user_list));
+			task->m_activated = M_FALSE;
+			up(&(task->m_thrd_sema));
+		}
+	#endif
 	}
-
-	return NULL;
+	return M_FALSE;
 }
 
 /*****************************************************************************/
@@ -255,6 +307,11 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	struct acc_motion s_kData;
 	struct acc_event_info *new_event;
 
+	if(g_event_init == M_FALSE){
+		idr_init(&g_event_idr);
+		g_event_init = M_TRUE;
+	}
+
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
 		return -EINVAL;
@@ -302,6 +359,7 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 		return ret;
 	}
 
+#if 0 
 	/* init with lock */
 	if (alloc_event_id(&(new_event->m_eid)) == M_TRUE) {
 		list_add_tail(&(new_event->m_event_list), &g_event_list);
@@ -311,7 +369,17 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 		kfree(new_event);
 		ret = -ENOMEM;
 	}
+#else 
+	/* init with lock */
+	if (alloc_event_id(&(new_event->m_eid), new_event) == 0) {
+		ret = new_event->m_eid;
+	}else{
+		PRINTK("alloc_event_id Failed!!!\n");
+		kfree(new_event);
+		ret = -ENOMEM;
+	}
 
+#endif
 	mutex_unlock(&data_mtx);
 
 	if (ret < 0)
@@ -374,7 +442,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	}
 
 	/* Check event_id validation */
-	evt = check_event_exist(event_id);
+	evt = idr_find(&g_event_idr,event_id);
 
 	if (evt == NULL) {
 		mutex_unlock(&data_mtx);
@@ -428,13 +496,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
 	/* @lfred: it's just not impl */
 	struct dev_acceleration data;
-	struct acc_dev_info aged_head;
-	struct acc_event_info *evt;
-	struct acc_user_info *task, *next_task;
-	struct acc_dev_info *p_data;
-	struct acc_motion *p_mot;
 
-	BOOL is_valid;
 	long retval = 0;
 	int retDown = 0;
 	/* int matchCount, i = 0 */
@@ -480,83 +542,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/* TODO: implement the algorithm */
 	/* for each event and each user, scan the queue */
 
-	list_for_each_entry(evt, &g_event_list, m_event_list) {
-
-		p_mot = &(evt->m_motion);
-
-		/* iterate the task list */
-		list_for_each_entry_safe(
-			task, next_task, &(evt->m_wait_list), m_user_list) {
-
-			if (task->m_activated == M_FALSE)
-				continue;
-
-			/* TODO:					*/
-			/* new algo using aged_head and is_valid	*/
-			/* we don not to iterate everything		*/
-#ifdef W4118_NAIVE_METHOD
-			/* reset match counter */
-			matchCount = 0;
-
-			/* iterate the buffer */
-			for (i =  g_sensor_data.m_head;
-				i != g_sensor_data.m_tail;
-				i = modular_inc(i)) {
-				p_data = &(g_sensor_data.m_buf[i]);
-
-				/* check timestamp validity */
-				if (p_data->m_timestamp < task->m_timestamp)
-					continue;
-
-				/* match the count */
-				if (p_data->m_x	+ p_data->m_y
-					+ p_data->m_z < NOISE)
-					continue;
-
-				/* do the real comparison */
-				if (p_data->m_x >= p_mot->dlt_x &&
-					p_data->m_y >= p_mot->dlt_y &&
-					p_data->m_z >= p_mot->dlt_z)
-					matchCount++;
-			}
-
-			/* remove from the list && wake up the task */
-			if (matchCount >= p_mot->frq) {
-				list_del(&(task->m_user_list));
-				task->m_activated = M_FALSE;
-				up(&(task->m_thrd_sema));
-			}
-#else
-			p_data = &(g_sensor_data.m_buf[modular_dec(
-						g_sensor_data.m_tail)]);
-
-			if (is_valid &&
-				aged_head.m_timestamp > task->m_timestamp &&
-				aged_head.m_x >= p_mot->dlt_x &&
-				aged_head.m_y >= p_mot->dlt_y &&
-				aged_head.m_z >= p_mot->dlt_z) {
-
-				task->m_validCnt--;
-			}
-
-			if (p_data->m_x >= p_mot->dlt_x &&
-				p_data->m_y >= p_mot->dlt_y &&
-				p_data->m_z >= p_mot->dlt_z) {
-
-				task->m_validCnt++;
-			}
-
-			/* remove from the list && wake up the task */
-			if (task->m_validCnt >= p_mot->frq) {
-				list_del(&(task->m_user_list));
-				task->m_activated = M_FALSE;
-				up(&(task->m_thrd_sema));
-			}
-
-#endif
-
-		}
-	}
+	idr_for_each(&g_event_idr, &event_comparison, NULL);
 
 	/* EXIT CRITICAL SECTION */
 	/*********************************************************************/
@@ -582,7 +568,7 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 		return retval;
 	}
 
-	evt = check_event_exist(event_id);
+	evt = idr_find(&g_event_idr,event_id);
 
 	if (evt == NULL) {
 		mutex_unlock(&data_mtx);
@@ -606,7 +592,4 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 
 	return retval;
 }
-
-
-
 
