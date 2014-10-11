@@ -69,9 +69,10 @@ static int poll_sensor_data(
 			buffer[i].acceleration.y,
 			buffer[i].acceleration.z);
 
-		out->x = buffer[i].acceleration.x * 100.0;
-		out->y = buffer[i].acceleration.y * 100.0;
-		out->z = buffer[i].acceleration.z * 100.0;
+		/* get the int value */
+		out->x = (int)(buffer[i].acceleration.x * 100.0);
+		out->y = (int)(buffer[i].acceleration.y * 100.0);
+		out->z = (int)(buffer[i].acceleration.z * 100.0);
 	}
 	return 0;
 }
@@ -114,20 +115,20 @@ int main(int argc, char **argv)
 	/* argument check */
 	if (argc == 1) {
 		/* use default TIME_INTERVAL */
-		printf("Polling Interval: %d\n", g_interval);
+		dbg("Polling Interval: %d\n", g_interval);
 		g_interval = TIME_INTERVAL;
 	} else if (argc == 2) {
 		/* use user defined TIME_INTERVAL */
 		v = strtol(argv[1], &tmp, 10);
 
 		if (tmp != NULL && *tmp != '\0') {
-			printf("Invalid input, use default\n");
+			dbg("Invalid input, use default\n");
 			g_interval = TIME_INTERVAL;
 		} else 
 			g_interval = (int)v;
 
 	} else {
-		printf("Invalid parameter, use default\n");
+		dbg("Invalid parameter, use default\n");
 		g_interval = TIME_INTERVAL;
 	}
 
@@ -135,16 +136,16 @@ int main(int argc, char **argv)
 
 	effective_sensor = -1;
 
-	printf("Opening sensors...\n");
+	dbg("Opening sensors...\n");
 	if (open_sensors(&sensors_module,
 			 &sensors_device) < 0) {
-		printf("open_sensors failed\n");
+		dbg("open_sensors failed\n");
 		return EXIT_FAILURE;
 	}
 	enumerate_sensors(sensors_module);
 
 	/* Fill in daemon implementation around here */
-	printf("turn me into a daemon!\n");
+	dbg("turn me into a daemon!\n");
 	while (1) {
 		poll_sensor_data(sensors_device, &data);
 		syscall(__NR_accevt_signal, &data);
