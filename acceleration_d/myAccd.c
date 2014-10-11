@@ -104,21 +104,32 @@ static void create_my_daemon(void)
    where indicated */
 int main(int argc, char **argv)
 {
-	if (argc == 1) {
-		/* use default TIME_INTERVAL*/
-		g_interval = TIME_INTERVAL;
-	} else if (argc == 2) {
-		/* use user defined TIME_INTERVAL*/
-		if(!(g_interval = atoi(argv[1]))){
-			printf("Don't put garbage into argv\n");
-			return 0;
-		}
-	} else {
-		printf("Don't put two value in argv\n");
-	}
+	/* local variables */
 	struct sensors_module_t *sensors_module = NULL;
 	struct sensors_poll_device_t *sensors_device = NULL;
 	struct dev_acceleration data;
+	char *tmp = NULL;
+	long v;
+
+	/* argument check */
+	if (argc == 1) {
+		/* use default TIME_INTERVAL */
+		fprintf(stderr, "Polling Interval: %d\n", g_interval);
+		g_interval = TIME_INTERVAL;
+	} else if (argc == 2) {
+		/* use user defined TIME_INTERVAL */
+		v = strtol(argv[1], tmp, 10);
+
+		if (tmp != NULL && *tmp != '\0') {
+			fprintf(stderr, "Invalid input, use default\n");
+			g_interval = TIME_INTERVAL;
+		} else 
+			g_interval = (int)v;
+
+	} else {
+		fprintf(stderr, "Invalid parameter, use default\n");
+		g_interval = TIME_INTERVAL;
+	}
 
 	create_my_daemon();
 
