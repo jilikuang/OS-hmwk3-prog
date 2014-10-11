@@ -596,7 +596,7 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 	/* iterate user and wake them up */
 	/* the user pointer will be free @ wait function */
 	list_for_each_entry_safe(iter, next, &(evt->m_wait_list), m_user_list) {
-		iter->m_ret_val = -EAGAIN;
+		iter->m_ret_val = -EINVAL;
 		list_del(&(iter->m_user_list));
 		up(&(iter->m_thrd_sema));
 	}
