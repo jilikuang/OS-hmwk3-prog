@@ -114,20 +114,20 @@ int main(int argc, char **argv)
 	/* argument check */
 	if (argc == 1) {
 		/* use default TIME_INTERVAL */
-		fprintf(stderr, "Polling Interval: %d\n", g_interval);
+		printf("Polling Interval: %d\n", g_interval);
 		g_interval = TIME_INTERVAL;
 	} else if (argc == 2) {
 		/* use user defined TIME_INTERVAL */
-		v = strtol(argv[1], tmp, 10);
+		v = strtol(argv[1], &tmp, 10);
 
 		if (tmp != NULL && *tmp != '\0') {
-			fprintf(stderr, "Invalid input, use default\n");
+			printf("Invalid input, use default\n");
 			g_interval = TIME_INTERVAL;
 		} else 
 			g_interval = (int)v;
 
 	} else {
-		fprintf(stderr, "Invalid parameter, use default\n");
+		printf("Invalid parameter, use default\n");
 		g_interval = TIME_INTERVAL;
 	}
 
