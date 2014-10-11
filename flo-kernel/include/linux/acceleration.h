@@ -62,7 +62,7 @@ struct acc_event_info {
 	unsigned int m_eid;
 	struct acc_motion m_motion;
 
-	struct list_head m_event_list;
+	/* struct list_head m_event_list; */
 	struct list_head m_wait_list;
 };
 
@@ -94,3 +94,4 @@ struct acc_fifo {
 };
 
 #endif /* __ACC_H__ */
+
