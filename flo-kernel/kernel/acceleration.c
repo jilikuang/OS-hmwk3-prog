@@ -175,8 +175,9 @@ static int event_comparison(int id, void *ptr, void *data)
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
 	struct acc_motion *p_mot;
+	/* int matchCount, i = 0 */
 
-	evt = ptr;
+	evt = (struct acc_event_info *)ptr;
 	p_mot = &(evt->m_motion);
 
 	/* iterate the task list */
@@ -499,7 +500,6 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 
 	long retval = 0;
 	int retDown = 0;
-	/* int matchCount, i = 0 */
 	unsigned long sz = sizeof(struct dev_acceleration);
 
 	if (acceleration == NULL) {
@@ -576,9 +576,6 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 		return -EINVAL;
 	}
 
-	/* remove from evt list */
-	list_del(&(evt->m_event_list));
-
 	/* iterate user and wake them up */
 	/* the user pointer will be free @ wait function */
 	list_for_each_entry_safe(iter, next, &(evt->m_wait_list), m_user_list) {
@@ -587,6 +584,9 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 		up(&(iter->m_thrd_sema));
 	}
 
+	/* remove from evt map */
+	idr_remove(&g_event_idr, evt->m_eid);
+	
 	mutex_unlock(&data_mtx);
 	kfree(evt);
 
