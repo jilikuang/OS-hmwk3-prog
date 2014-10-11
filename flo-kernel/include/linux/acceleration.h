@@ -81,7 +81,11 @@ struct acc_user_info {
 };
 
 struct acc_fifo {
+#ifdef __HW3_KFIFO__
+	struct kfifo m_fifo;
+#else
 	struct acc_dev_info m_buf[WINDOW];
+#endif
 	struct dev_acceleration  m_prev;
 
 	int m_head;	/* current head */

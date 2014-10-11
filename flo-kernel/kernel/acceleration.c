@@ -30,11 +30,16 @@ static DEFINE_MUTEX(set_mutex);
 /*****************************************************************************/
 static unsigned int g_lastId = M_ZERO;
 static BOOL g_init = M_FALSE;
-static struct acc_fifo g_sensor_data;
+
+#ifdef __HW3_KFIFO__
+	static char g_fifo_buf[M_FIFO_CAPACITY];
+#else
+	static struct acc_fifo g_sensor_data;
+#endif
 
 /*****************************************************************************/
 /* Util function to get current time */
-/* This is BUGGY - we should use a monotonic time instead */
+/* Note: we do NOT use this function in CRITICAL SECTIONS */
 static unsigned int get_current_time(void)
 {
 	struct timespec ts;
@@ -66,15 +71,22 @@ static BOOL init_fifo(void)
 		return M_TRUE;
 
 	if (g_init == M_FALSE) {
-		g_init = M_TRUE;
+
+#ifdef __HW3_KFIFO__
+		kfifo_init(&g_sensor.m_fifo, g_sensor_fifo, M_FIFO_CAPACITY);
+#else
 		g_sensor_data.m_head = -1;
 		g_sensor_data.m_tail = 0;
 		g_sensor_data.m_capacity = M_FIFO_CAPACITY;
+#endif
 
 		/* init the previous data */
 		g_sensor_data.m_prev.x = 0;
 		g_sensor_data.m_prev.y = 0;
 		g_sensor_data.m_prev.z = 0;
+	
+		/* set up the init flag in the last */	
+		g_init = M_TRUE;
 	}
 
 	return M_TRUE;
@@ -85,10 +97,17 @@ static BOOL init_fifo(void)
 static void enqueue_data(
 	struct dev_acceleration *in,
 	struct acc_dev_info *out,
-	BOOL *p_valid_out) {
+	BOOL *p_valid_out,
+	unsigned int ts) {
 
 	struct acc_dev_info *p_data, *p_temp;
 	struct dev_acceleration *p_prev;
+
+#ifdef __HW3_KFIFO__
+	unsigned int r;
+	unsigned int sz_dev_info = sizeof(struct acc_dev_info);
+	struct acc_dev_info tmp_dev;
+#endif
 
 	/* default to false */
 	*p_valid_out = M_FALSE;
@@ -98,6 +117,57 @@ static void enqueue_data(
 		return;
 	}
 
+#ifdef __HW3_KFIFO__
+	
+	if (kfifo_is_full()) {
+		r = kfifo_out(
+			&g_sensor_data.m_fifo, 
+			out, 
+			sz_dev_info);
+		
+		if (r != sz_dev_info) {
+			PRINTK("it's a bug");
+			*p_valid_out = M_FALSE;		
+		} else
+			*p_valid_out = M_TRUE;
+	}
+	
+	p_prev = &(g_sensor_data.m_prev);
+	 	
+	/* store the diff */
+	tmp_dev.m_x =
+		(in->x > p_prev->x) ?
+			in->x - p_prev->x :
+			p_prev->x - in->x;
+	tmp_dev.m_y =
+		(in->y > p_prev->y) ?
+			in->y - p_prev->y :
+			p_prev->y - in->y;
+	tmp_dev.m_z =
+		(in->z > p_prev->z) ?
+			in->z - p_prev->z :
+			p_prev->z - in->z;
+
+	/* save the current data */
+	p_prev->x = in->x;
+	p_prev->y = in->y;
+	p_prev->z = in->z;
+
+	/* set time stamp */
+	tmp_dev.m_timestamp = ts;
+	
+	/* put into the queue */
+	r = kfifo_in(
+		&g_sensor_data.m_fifo,
+		(const void*)&tmp_dev,
+		sz_dev_info); 
+	
+	if (r != sz_dev_info) {
+		PRINTK("failed to fifo in\n");
+		return;
+	}
+
+#else
 	if (g_sensor_data.m_head == -1)
 		g_sensor_data.m_head++;
 	else {
@@ -141,10 +211,11 @@ static void enqueue_data(
 	p_prev->z = in->z;
 
 	/* set time stamp */
-	p_data->m_timestamp = get_current_time();
+	p_data->m_timestamp = ts;
 
 	/* advance the tail */
 	g_sensor_data.m_tail = modular_inc(g_sensor_data.m_tail);
+#endif
 }
 
 /* !!! NOT THREAD-SAFE !!! */
@@ -405,13 +476,11 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 		mutex_unlock(&data_mtx);
 
 		retval = semRet;
-	} else {
+	} else
 		/* 2nd phase of cleaning: wait has to free itself */
 		retval = new_user->m_ret_val;
-	}
 
 	kfree(new_user);
-
 	PRINTK("accevt_wait return: %ld\n", retval);
 	return retval;
 }
@@ -439,6 +508,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	int retDown = 0;
 	/* int matchCount, i = 0 */
 	unsigned long sz = sizeof(struct dev_acceleration);
+	unsigned int ts = get_current_time();	
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -474,12 +544,11 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/*		do cleanup as well	*/
 
 	/* step 1. put data into the Q */
-	enqueue_data(&data, &aged_head, &is_valid);
+	enqueue_data(&data, &aged_head, &is_valid, ts);
 
 	/* step 2. check if any event is activated */
 	/* TODO: implement the algorithm */
 	/* for each event and each user, scan the queue */
-
 	list_for_each_entry(evt, &g_event_list, m_event_list) {
 
 		p_mot = &(evt->m_motion);
@@ -494,39 +563,6 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			/* TODO:					*/
 			/* new algo using aged_head and is_valid	*/
 			/* we don not to iterate everything		*/
-#ifdef W4118_NAIVE_METHOD
-			/* reset match counter */
-			matchCount = 0;
-
-			/* iterate the buffer */
-			for (i =  g_sensor_data.m_head;
-				i != g_sensor_data.m_tail;
-				i = modular_inc(i)) {
-				p_data = &(g_sensor_data.m_buf[i]);
-
-				/* check timestamp validity */
-				if (p_data->m_timestamp < task->m_timestamp)
-					continue;
-
-				/* match the count */
-				if (p_data->m_x	+ p_data->m_y
-					+ p_data->m_z < NOISE)
-					continue;
-
-				/* do the real comparison */
-				if (p_data->m_x >= p_mot->dlt_x &&
-					p_data->m_y >= p_mot->dlt_y &&
-					p_data->m_z >= p_mot->dlt_z)
-					matchCount++;
-			}
-
-			/* remove from the list && wake up the task */
-			if (matchCount >= p_mot->frq) {
-				list_del(&(task->m_user_list));
-				task->m_activated = M_FALSE;
-				up(&(task->m_thrd_sema));
-			}
-#else
 			p_data = &(g_sensor_data.m_buf[modular_dec(
 						g_sensor_data.m_tail)]);
 
@@ -552,9 +588,6 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				task->m_activated = M_FALSE;
 				up(&(task->m_thrd_sema));
 			}
-
-#endif
-
 		}
 	}
 
