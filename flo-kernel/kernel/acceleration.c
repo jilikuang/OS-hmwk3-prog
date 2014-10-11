@@ -344,7 +344,6 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	/* init without lock */
 	memcpy(&new_event->m_motion, &s_kData, sizeof(struct acc_motion));
-	INIT_LIST_HEAD(&new_event->m_event_list);
 	INIT_LIST_HEAD(&new_event->m_wait_list);
 
 	/* required by spec: capping with WINDOW size */
@@ -586,7 +585,7 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 
 	/* remove from evt map */
 	idr_remove(&g_event_idr, evt->m_eid);
-	
+
 	mutex_unlock(&data_mtx);
 	kfree(evt);
 
