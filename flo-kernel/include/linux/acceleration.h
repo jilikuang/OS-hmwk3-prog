@@ -17,7 +17,7 @@
 #define NOISE		(10)
 
 /* Define the window */
-#define WINDOW		(16 * 1024)
+#define WINDOW		(1024)
 #define M_FIFO_CAPACITY	(WINDOW * sizeof(struct acc_dev_info))
 
 /* event limitations */
