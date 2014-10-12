@@ -381,11 +381,13 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 	/* init without lock */
 	memcpy(&new_event->m_motion, &s_kData, sizeof(struct acc_motion));
 	INIT_LIST_HEAD(&new_event->m_wait_list);
+	INIT_LIST_HEAD(&new_event->m_event_list);
 
 	/* required by spec: capping with WINDOW size */
 	if (new_event->m_motion.frq > WINDOW)
 		new_event->m_motion.frq = WINDOW;
 
+	/* allocate id before entering the critical section */
 	if (alloc_event_id(&(new_event->m_eid), new_event) == M_FALSE) {
 		kfree(new_event);
 		return -ENOMEM;
@@ -398,7 +400,6 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 		PRINTK("Failed to obtain event list lock - bye");
 		free_event_id(new_event->m_eid);
 		kfree(new_event);
-		
 		return ret;
 	}
 
@@ -548,7 +549,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	PRINTK("accevt_signal\n");
 	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
 	
-	/* init aged head */
+	/* init aged head & current tail */
 	memset(&aged_head, 0, sizeof(struct acc_dev_info));
 	memset(&current_tail, 0, sizeof(struct acc_dev_info));
 	
