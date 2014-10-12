@@ -168,6 +168,7 @@ static void enqueue_data(
 	tmp_dev.m_timestamp = ts;
 	
 	/* put into the queue */
+	KPRINTF("kfifo_in: 0x%x, 0x%x, %d\n", &g_sensor_data.m_fifo, &tmp_dev, sz_dev_info);
 	r = kfifo_in(
 		&g_sensor_data.m_fifo,
 		(const void*)&tmp_dev,
@@ -525,6 +526,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	struct dev_acceleration data;
 	struct acc_dev_info aged_head;
 	struct acc_dev_info current_tail;
+	
 	struct acc_event_info *evt;
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
