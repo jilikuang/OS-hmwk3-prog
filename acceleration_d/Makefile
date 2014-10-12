@@ -1,5 +1,6 @@
 # Set this to the name of your program
 TARGET = acceleration_d
+MY_TARGET = myAcc_d
 
 TARGET_DIR = /data/misc
 
@@ -7,7 +8,7 @@ TARGET_DIR = /data/misc
 # of your sources files (make sure
 # to put a complete relative path)
 SOURCES = accelerationd.c
-#SOURCES = accelerationd.c
+MY_SOURCES = myAccd.c
 
 CRUNTIME = crtbegin_dynamic.S \
            crtend.S
@@ -18,6 +19,7 @@ CRUNTIME = crtbegin_dynamic.S \
 # you know what you're doing :-)
 # 
 OBJECTS = $(SOURCES:%.c=%.c.o) $(CRUNTIME:%.S=%.S.o)
+MY_OBJECTS = $(MY_SOURCES:%.c=%.c.o) $(CRUNTIME:%.S=%.S.o)
 INCLUDE = -I. -I./inc -I../flo-kernel/include -I../flo-kernel/arch/arm/include
 EXTRA_LIBS = -lc -lhardware
 CFLAGS = -g -O2 -Wall $(INCLUDE) $(EXTRA_CFLAGS)
@@ -27,11 +29,15 @@ LDFLAGS = --entry=_start --dynamic-linker /system/bin/linker \
 CC = arm-none-linux-gnueabi-gcc
 LD = arm-none-linux-gnueabi-ld
 
-default: $(SOURCES) $(TARGET)
+default: $(SOURCES) $(TARGET) $(MY_SOURCES) $(MY_TARGET)
 
 $(TARGET): $(OBJECTS)
 	@echo [ARM-LD] $@
 	@$(LD) $(LDFLAGS) $(OBJECTS) -o $@
+
+$(MY_TARGET): $(MY_OBJECTS)
+	@echo [ARM-LD] $@
+	@$(LD) $(LDFLAGS) $(MY_OBJECTS) -o $@
 
 %.c.o: %.c
 	@echo [ARM-CC] $<...
@@ -45,6 +51,7 @@ $(TARGET): $(OBJECTS)
 clean:
 	@echo [CLEAN] removing object files + $(TARGET)...
 	@rm -f $(OBJECTS) $(TARGET)
+	@rm -f $(MY_OBJECTS) $(MY_TARGET)
 
 %_emu: ADB_OPT = -e
 %_emu: ADB_TGT = Android Emulator
@@ -74,5 +81,25 @@ run_%: $(TARGET)
 	@sleep 2
 	@echo "$(TARGET_DIR)/$(TARGET) && exit" | adb $(ADB_OPT) shell
 
-.PHONY:
+my_install_%: $(MY_TARGET)
+	@echo [INSTALL] moving $(MY_TARGET) to $(ADB_TGT) [$(TARGET_DIR)]...
+	@adb $(ADB_OPT) remount
+	@adb $(ADB_OPT) push $(MY_TARGET) $(TARGET_DIR)
+	@adb $(ADB_OPT) shell chmod 6755 $(TARGET_DIR)/$(MY_TARGET)
 
+my_user_install_%: $(MY_TARGET)
+	@echo [INSTALL:user] moving $(MY_TARGET) to $(ADB_TGT) [$(TARGET_DIR)]...
+	@adb $(ADB_OPT) remount
+	@adb $(ADB_OPT) push $(MY_TARGET) $(TARGET_DIR)
+	@adb $(ADB_OPT) shell chmod 0750 $(TARGET_DIR)/$(MY_TARGET)
+	@adb $(ADB_OPT) shell chown compass.system $(TARGET_DIR)/$(MY_TARGET)
+
+my_run_%: $(MY_TARGET)
+	@echo [RUN] calling $(TARGET_DIR)/$(MY_TARGET) on $(ADB_TGT)...
+	@adb $(ADB_OPT) shell stop akmd
+	@adb $(ADB_OPT) shell start akmd
+	@echo 
+	@echo "You may have to keep your screen off for this to work..."
+	@echo 
+	@sleep 2
+	@echo "$(TARGET_DIR)/$(MY_TARGET) && exit" | adb $(ADB_OPT) shell
