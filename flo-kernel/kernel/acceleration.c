@@ -168,7 +168,7 @@ static void enqueue_data(
 	tmp_dev.m_timestamp = ts;
 	
 	/* put into the queue */
-	KPRINTF("kfifo_in: 0x%x, 0x%x, %d\n", &g_sensor_data.m_fifo, &tmp_dev, sz_dev_info);
+	PRINTK("kfifo_in: 0x%x, 0x%x, %d\n", &g_sensor_data.m_fifo, &tmp_dev, sz_dev_info);
 	r = kfifo_in(
 		&g_sensor_data.m_fifo,
 		(const void*)&tmp_dev,
