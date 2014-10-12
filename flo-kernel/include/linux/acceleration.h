@@ -11,13 +11,13 @@
 #define	M_ZERO		(0)
 
 /* Define time interval (ms) */
-#define TIME_INTERVAL	(200)
+#define TIME_INTERVAL	(50)
 
 /* Define the noise */
 #define NOISE		(10)
 
 /* Define the window */
-#define WINDOW		(1024)
+#define WINDOW		(128)
 #define M_FIFO_CAPACITY	(WINDOW * sizeof(struct acc_dev_info))
 
 /* event limitations */
