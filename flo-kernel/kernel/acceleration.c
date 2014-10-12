@@ -41,6 +41,7 @@ static struct acc_fifo g_sensor_data;
 #ifdef __HW3_KFIFO__
 	/* the buffer used in fifo */
 	static char g_fifo_buf[M_FIFO_CAPACITY];
+	static DEFINE_KFIFO(g_data_fifo, struct acc_dev_info, WINDOW);
 #endif
 
 
@@ -82,7 +83,7 @@ static BOOL init_fifo(void)
 	if (g_init == M_FALSE) {
 
 #ifdef __HW3_KFIFO__
-		kfifo_init(&g_sensor_data.m_fifo, g_fifo_buf, M_FIFO_CAPACITY);
+		kfifo_init(&g_data_fifo, g_fifo_buf, M_FIFO_CAPACITY);
 #else
 		g_sensor_data.m_head = -1;
 		g_sensor_data.m_tail = 0;
@@ -130,11 +131,11 @@ static void enqueue_data(
 
 #ifdef __HW3_KFIFO__
 	
-	if (kfifo_is_full(&g_sensor_data.m_fifo)) {
+	if (kfifo_is_full(&g_data_fifo)) {
 		r = kfifo_out(
-			&g_sensor_data.m_fifo, 
+			&g_data_fifo, 
 			out, 
-			sz_dev_info);
+			1);
 		
 		if (r != sz_dev_info) {
 			PRINTK("it's a bug");
@@ -168,11 +169,11 @@ static void enqueue_data(
 	tmp_dev.m_timestamp = ts;
 	
 	/* put into the queue */
-	PRINTK("kfifo_in: 0x%x, 0x%x, %d\n", &g_sensor_data.m_fifo, &tmp_dev, sz_dev_info);
+	/* PRINTK("kfifo_in: 0x%x, 0x%x, %d\n", &g_data_fifo, &tmp_dev, sz_dev_info); */
 	r = kfifo_in(
-		&g_sensor_data.m_fifo,
+		&g_data_fifo,
 		(const void*)&tmp_dev,
-		sz_dev_info); 
+		1); 
 	
 	if (r != sz_dev_info) {
 		PRINTK("failed to fifo in\n");
