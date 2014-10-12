@@ -9,7 +9,6 @@
 #include <linux/slab.h>
 #include <linux/kfifo.h>
 #include <linux/time.h>
-#include <linux/idr.h>
 
 #include <linux/types.h>
 #include <linux/uaccess.h>
@@ -27,27 +26,15 @@ static DEFINE_MUTEX(data_mtx);
 /* @lfred: just to prevent multi-daemon or TA's test */
 static DEFINE_MUTEX(set_mutex);
 
-/* a lock to provide synchronization for idr */
-static DEFINE_SPINLOCK(g_id_lock);
-
 /* other data */
 /*****************************************************************************/
+static unsigned int g_lastId = M_ZERO;
 static BOOL g_init = M_FALSE;
-static BOOL g_event_init = M_FALSE;
-static BOOL is_valid = M_FALSE;
-static struct idr g_event_idr;
 static struct acc_fifo g_sensor_data;
-
-#ifdef __HW3_KFIFO__
-	/* the buffer used in fifo */
-	static char g_fifo_buf[M_FIFO_CAPACITY];
-	static DEFINE_KFIFO(g_data_fifo, struct acc_dev_info, WINDOW);
-#endif
-
 
 /*****************************************************************************/
 /* Util function to get current time */
-/* Note: we do NOT use this function in CRITICAL SECTIONS */
+/* This is BUGGY - we should use a monotonic time instead */
 static unsigned int get_current_time(void)
 {
 	struct timespec ts;
@@ -56,22 +43,20 @@ static unsigned int get_current_time(void)
 	return ts.tv_nsec/1000 + (ts.tv_sec)*1000000;
 }
 
-#ifndef __HW3_KFIFO__
 /* Instead of doing modular, we use if statment */
 static int modular_inc(int n)
 {
 	if (n == WINDOW - 1)
 		return 0;
-	return (n + 1);
+	return (n+1);
 }
 
 static int modular_dec(int n)
 {
 	if (n == 0)
 		return (WINDOW - 1);
-	return (n - 1);
+	return (n-1);
 }
-#endif
 
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
 /* !!! called with DATA_MTX section ONLY !!!*/
@@ -81,22 +66,15 @@ static BOOL init_fifo(void)
 		return M_TRUE;
 
 	if (g_init == M_FALSE) {
-
-#ifdef __HW3_KFIFO__
-		kfifo_init(&g_data_fifo, g_fifo_buf, M_FIFO_CAPACITY);
-#else
+		g_init = M_TRUE;
 		g_sensor_data.m_head = -1;
 		g_sensor_data.m_tail = 0;
 		g_sensor_data.m_capacity = M_FIFO_CAPACITY;
-#endif
 
 		/* init the previous data */
 		g_sensor_data.m_prev.x = 0;
 		g_sensor_data.m_prev.y = 0;
 		g_sensor_data.m_prev.z = 0;
-	
-		/* set up the init flag in the last */	
-		g_init = M_TRUE;
 	}
 
 	return M_TRUE;
@@ -107,19 +85,10 @@ static BOOL init_fifo(void)
 static void enqueue_data(
 	struct dev_acceleration *in,
 	struct acc_dev_info *out,
-	struct acc_dev_info *tail,
-	BOOL *p_valid_out,
-	unsigned int ts) {
+	BOOL *p_valid_out) {
 
+	struct acc_dev_info *p_data, *p_temp;
 	struct dev_acceleration *p_prev;
-
-#ifdef __HW3_KFIFO__
-	unsigned int r;
-	unsigned int sz_dev_info = sizeof(struct acc_dev_info);
-	struct acc_dev_info tmp_dev;
-#else
-	struct acc_dev_info *p_temp, *p_data;
-#endif
 
 	/* default to false */
 	*p_valid_out = M_FALSE;
@@ -129,61 +98,6 @@ static void enqueue_data(
 		return;
 	}
 
-#ifdef __HW3_KFIFO__
-	
-	if (kfifo_is_full(&g_data_fifo)) {
-		r = kfifo_out(
-			&g_data_fifo, 
-			out, 
-			1);
-		
-		if (r != sz_dev_info) {
-			PRINTK("it's a bug");
-			*p_valid_out = M_FALSE;		
-		} else
-			*p_valid_out = M_TRUE;
-	}
-	
-	p_prev = &(g_sensor_data.m_prev);
-	 	
-	/* calculate the diff */
-	tmp_dev.m_x =
-		(in->x > p_prev->x) ?
-			in->x - p_prev->x :
-			p_prev->x - in->x;
-	tmp_dev.m_y =
-		(in->y > p_prev->y) ?
-			in->y - p_prev->y :
-			p_prev->y - in->y;
-	tmp_dev.m_z =
-		(in->z > p_prev->z) ?
-			in->z - p_prev->z :
-			p_prev->z - in->z;
-
-	/* save the current data */
-	p_prev->x = in->x;
-	p_prev->y = in->y;
-	p_prev->z = in->z;
-
-	/* set time stamp */
-	tmp_dev.m_timestamp = ts;
-	
-	/* put into the queue */
-	/* PRINTK("kfifo_in: 0x%x, 0x%x, %d\n", &g_data_fifo, &tmp_dev, sz_dev_info); */
-	r = kfifo_in(
-		&g_data_fifo,
-		(const void*)&tmp_dev,
-		1); 
-	
-	if (r != sz_dev_info) {
-		PRINTK("failed to fifo in\n");
-		return;
-	}
-
-	/* copy the current tail back to the caller */
-	memcpy(tail, &tmp_dev, sizeof(struct acc_dev_info));
-
-#else
 	if (g_sensor_data.m_head == -1)
 		g_sensor_data.m_head++;
 	else {
@@ -227,56 +141,46 @@ static void enqueue_data(
 	p_prev->z = in->z;
 
 	/* set time stamp */
-	p_data->m_timestamp = ts;
+	p_data->m_timestamp = get_current_time();
 
 	/* advance the tail */
 	g_sensor_data.m_tail = modular_inc(g_sensor_data.m_tail);
-#endif
 }
 
-/* !!! THREAD-SAFE !!! */
+/* !!! NOT THREAD-SAFE !!! */
 /* the function is used to allocate a new ID */
-static BOOL alloc_event_id(
-	unsigned int *ap_id,
-	struct acc_event_info *new_event)
+/* NOTE: use with lock hold */
+static BOOL alloc_event_id(unsigned int *ap_id)
 {
-	int ret;
+	unsigned int startingId = g_lastId;
+	struct acc_event_info *iter;
+	BOOL found = M_FALSE;
 
-	/* init the idr if not init before */
-	spin_lock(&g_id_lock);
-	if (g_event_init == M_FALSE) {
-		idr_init(&g_event_idr);
-		g_event_init = M_TRUE;
+	while (true) {
+
+		list_for_each_entry(iter, &g_event_list, m_event_list) {
+			if (iter->m_eid == g_lastId) {
+				found = M_TRUE;
+				break;
+			}
+		}
+
+		if (found == M_TRUE) {
+			/* the lastId is used */
+			g_lastId++;
+			found = M_FALSE;
+
+			if (g_lastId == startingId)
+				return M_FALSE;
+		} else {
+			/* the lastId is not used */
+			break;
+		}
 	}
-	spin_unlock(&g_id_lock);
 
-	/* do the id allocation */ 
-	do {
-		/* we got no memory - sorry */
-		if (idr_pre_get(&g_event_idr, GFP_KERNEL) == 0)
-			return M_FALSE;
-
-		/* associate event with id */
-		spin_lock(&g_id_lock);
-		ret = idr_get_new(&g_event_idr, new_event, ap_id);
-		spin_unlock(&g_id_lock);
-
-	} while (ret == -EAGAIN);
-
-	if (ret == 0) {
-		PRINTK("event id allocated: %d\n", *ap_id);
-		return M_TRUE;
-	} else {
-		PRINTK("event id allocation failed: %d\n", ret);
-		return M_FALSE;
-	}
-}
-
-static void free_event_id(unsigned int id) {
-	
-	spin_lock(&g_id_lock);
-	idr_remove(&g_event_idr, id);
-	spin_unlock(&g_id_lock);
+	*ap_id = g_lastId;
+	g_lastId++;
+	return M_TRUE;
 }
 
 /* !!! NOT THREAD-SAFE !!! */
@@ -382,40 +286,36 @@ SYSCALL_DEFINE1(accevt_create, struct acc_motion __user *, acceleration)
 
 	/* init without lock */
 	memcpy(&new_event->m_motion, &s_kData, sizeof(struct acc_motion));
-	INIT_LIST_HEAD(&new_event->m_wait_list);
 	INIT_LIST_HEAD(&new_event->m_event_list);
+	INIT_LIST_HEAD(&new_event->m_wait_list);
 
 	/* required by spec: capping with WINDOW size */
 	if (new_event->m_motion.frq > WINDOW)
 		new_event->m_motion.frq = WINDOW;
-
-	/* allocate id before entering the critical section */
-	if (alloc_event_id(&(new_event->m_eid), new_event) == M_FALSE) {
-		kfree(new_event);
-		return -ENOMEM;
-	} 
 
 	/* CRITICAL section: init event with lock */
 	ret = mutex_lock_interruptible(&data_mtx);
 
 	if (ret != 0) {
 		PRINTK("Failed to obtain event list lock - bye");
-		free_event_id(new_event->m_eid);
 		kfree(new_event);
 		return ret;
 	}
 
 	/* init with lock */
-	list_add_tail(&(new_event->m_event_list), &g_event_list);
-	ret = new_event->m_eid;
+	if (alloc_event_id(&(new_event->m_eid)) == M_TRUE) {
+		list_add_tail(&(new_event->m_event_list), &g_event_list);
+		ret = new_event->m_eid;
+	} else {
+		PRINTK("alloc_event_id != M_TRUE!!!!\n");
+		kfree(new_event);
+		ret = -ENOMEM;
+	}
 
-	/* unlock */
 	mutex_unlock(&data_mtx);
 
-	if (ret < 0) {
-		free_event_id(new_event->m_eid);
+	if (ret < 0)
 		kfree(new_event);
-	}
 
 	PRINTK("accevt_create return: %ld\n", ret);
 
@@ -505,11 +405,13 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 		mutex_unlock(&data_mtx);
 
 		retval = semRet;
-	} else
+	} else {
 		/* 2nd phase of cleaning: wait has to free itself */
 		retval = new_user->m_ret_val;
+	}
 
 	kfree(new_user);
+
 	PRINTK("accevt_wait return: %ld\n", retval);
 	return retval;
 }
@@ -524,20 +426,19 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
  */
 SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
+	/* @lfred: it's just not impl */
 	struct dev_acceleration data;
 	struct acc_dev_info aged_head;
-	struct acc_dev_info current_tail;
-	
 	struct acc_event_info *evt;
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
 	struct acc_motion *p_mot;
 
+	BOOL is_valid;
 	long retval = 0;
 	int retDown = 0;
+	/* int matchCount, i = 0 */
 	unsigned long sz = sizeof(struct dev_acceleration);
-	unsigned int ts = get_current_time();	
-	unsigned int tmp;
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -551,12 +452,14 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 
 	PRINTK("accevt_signal\n");
 	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
-	
-	/* init aged head & current tail */
-	memset(&aged_head, 0, sizeof(struct acc_dev_info));
-	memset(&current_tail, 0, sizeof(struct acc_dev_info));
-	
-	retDown = mutex_lock_interruptible(&data_mtx);	
+
+	aged_head.m_x = 0;
+	aged_head.m_y = 0;
+	aged_head.m_z = 0;
+	aged_head.m_timestamp = 0;
+
+	retDown = mutex_lock_interruptible(&data_mtx);
+
 	if (retDown != 0) {
 		PRINTK("Hey dud, you're interupted.");
 		return retDown;
@@ -566,13 +469,17 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	/*********************************************************************/
 	/* init the fifo: it's okay to call multi times */
 	init_fifo();
-	
+
+	/* TODO:	do the real thing here	*/
+	/*		do cleanup as well	*/
+
 	/* step 1. put data into the Q */
-	enqueue_data(&data, &aged_head, &current_tail, &is_valid, ts);
+	enqueue_data(&data, &aged_head, &is_valid);
 
 	/* step 2. check if any event is activated */
 	/* TODO: implement the algorithm */
 	/* for each event and each user, scan the queue */
+
 	list_for_each_entry(evt, &g_event_list, m_event_list) {
 
 		p_mot = &(evt->m_motion);
@@ -584,27 +491,60 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			if (task->m_activated == M_FALSE)
 				continue;
 
+			/* TODO:					*/
 			/* new algo using aged_head and is_valid	*/
 			/* we don not to iterate everything		*/
-			tmp = aged_head.m_x + aged_head.m_y + aged_head.m_z; 
+#ifdef W4118_NAIVE_METHOD
+			/* reset match counter */
+			matchCount = 0;
 
-			/* decrement */
+			/* iterate the buffer */
+			for (i =  g_sensor_data.m_head;
+				i != g_sensor_data.m_tail;
+				i = modular_inc(i)) {
+				p_data = &(g_sensor_data.m_buf[i]);
+
+				/* check timestamp validity */
+				if (p_data->m_timestamp < task->m_timestamp)
+					continue;
+
+				/* match the count */
+				if (p_data->m_x	+ p_data->m_y
+					+ p_data->m_z < NOISE)
+					continue;
+
+				/* do the real comparison */
+				if (p_data->m_x >= p_mot->dlt_x &&
+					p_data->m_y >= p_mot->dlt_y &&
+					p_data->m_z >= p_mot->dlt_z)
+					matchCount++;
+			}
+
+			/* remove from the list && wake up the task */
+			if (matchCount >= p_mot->frq) {
+				list_del(&(task->m_user_list));
+				task->m_activated = M_FALSE;
+				up(&(task->m_thrd_sema));
+			}
+#else
+			p_data = &(g_sensor_data.m_buf[modular_dec(
+						g_sensor_data.m_tail)]);
+
 			if (is_valid &&
 				aged_head.m_timestamp > task->m_timestamp &&
-				tmp > NOISE &&
 				aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
-				aged_head.m_z >= p_mot->dlt_z)
-				task->m_validCnt--;
+				aged_head.m_z >= p_mot->dlt_z) {
 
-			/* increment */
-			p_data = &current_tail;
-			tmp = p_data->m_x + p_data->m_y + p_data->m_z; 
-			if (tmp > NOISE &&
-				p_data->m_x >= p_mot->dlt_x &&
+				task->m_validCnt--;
+			}
+
+			if (p_data->m_x >= p_mot->dlt_x &&
 				p_data->m_y >= p_mot->dlt_y &&
-				p_data->m_z >= p_mot->dlt_z)
+				p_data->m_z >= p_mot->dlt_z) {
+
 				task->m_validCnt++;
+			}
 
 			/* remove from the list && wake up the task */
 			if (task->m_validCnt >= p_mot->frq) {
@@ -612,6 +552,9 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				task->m_activated = M_FALSE;
 				up(&(task->m_thrd_sema));
 			}
+
+#endif
+
 		}
 	}
 
@@ -639,13 +582,16 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 		return retval;
 	}
 
-	/* Need to do this first - because idr is not reliable here */
 	evt = check_event_exist(event_id);
+
 	if (evt == NULL) {
 		mutex_unlock(&data_mtx);
 		PRINTK("event id not found.");
 		return -EINVAL;
 	}
+
+	/* remove from evt list */
+	list_del(&(evt->m_event_list));
 
 	/* iterate user and wake them up */
 	/* the user pointer will be free @ wait function */
@@ -656,11 +602,11 @@ SYSCALL_DEFINE1(accevt_destroy, int, event_id)
 	}
 
 	mutex_unlock(&data_mtx);
-
-	/* should we do it here ? */	
-	free_event_id(evt->m_eid);
 	kfree(evt);
 
 	return retval;
 }
+
+
+
 

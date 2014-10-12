@@ -4,7 +4,7 @@
 /* Header of system calls of hw3 */
 /* definitions */
 /*****************************************************************************/
-#define __HW3_KFIFO__	1 
+/* BOOL defines */
 #define BOOL		int
 #define M_TRUE		(1)
 #define	M_FALSE		(0)
@@ -81,9 +81,7 @@ struct acc_user_info {
 };
 
 struct acc_fifo {
-#ifndef __HW3_KFIFO__
 	struct acc_dev_info m_buf[WINDOW];
-#endif
 	struct dev_acceleration  m_prev;
 
 	int m_head;	/* current head */
@@ -92,4 +90,3 @@ struct acc_fifo {
 };
 
 #endif /* __ACC_H__ */
-
