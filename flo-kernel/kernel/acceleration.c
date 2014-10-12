@@ -36,13 +36,13 @@ static BOOL g_init = M_FALSE;
 static BOOL g_event_init = M_FALSE;
 static BOOL is_valid = M_FALSE;
 static struct idr g_event_idr;
+static struct acc_fifo g_sensor_data;
 
 #ifdef __HW3_KFIFO__
 	/* the buffer used in fifo */
 	static char g_fifo_buf[M_FIFO_CAPACITY];
-#else
-	static struct acc_fifo g_sensor_data;
 #endif
+
 
 /*****************************************************************************/
 /* Util function to get current time */
@@ -55,6 +55,7 @@ static unsigned int get_current_time(void)
 	return ts.tv_nsec/1000 + (ts.tv_sec)*1000000;
 }
 
+#ifndef __HW3_KFIFO__
 /* Instead of doing modular, we use if statment */
 static int modular_inc(int n)
 {
@@ -69,6 +70,7 @@ static int modular_dec(int n)
 		return (WINDOW - 1);
 	return (n - 1);
 }
+#endif
 
 /* !!! NOT THREAD-SAFE FUNCTION !!! */
 /* !!! called with DATA_MTX section ONLY !!!*/
@@ -80,7 +82,7 @@ static BOOL init_fifo(void)
 	if (g_init == M_FALSE) {
 
 #ifdef __HW3_KFIFO__
-		kfifo_init(&g_sensor.m_fifo, g_sensor_fifo, M_FIFO_CAPACITY);
+		kfifo_init(&g_sensor_data.m_fifo, g_fifo_buf, M_FIFO_CAPACITY);
 #else
 		g_sensor_data.m_head = -1;
 		g_sensor_data.m_tail = 0;
@@ -104,16 +106,18 @@ static BOOL init_fifo(void)
 static void enqueue_data(
 	struct dev_acceleration *in,
 	struct acc_dev_info *out,
+	struct acc_dev_info *tail,
 	BOOL *p_valid_out,
 	unsigned int ts) {
 
-	struct acc_dev_info *p_data, *p_temp;
 	struct dev_acceleration *p_prev;
 
 #ifdef __HW3_KFIFO__
 	unsigned int r;
 	unsigned int sz_dev_info = sizeof(struct acc_dev_info);
 	struct acc_dev_info tmp_dev;
+#else
+	struct acc_dev_info *p_temp, *p_data;
 #endif
 
 	/* default to false */
@@ -126,7 +130,7 @@ static void enqueue_data(
 
 #ifdef __HW3_KFIFO__
 	
-	if (kfifo_is_full()) {
+	if (kfifo_is_full(&g_sensor_data.m_fifo)) {
 		r = kfifo_out(
 			&g_sensor_data.m_fifo, 
 			out, 
@@ -141,7 +145,7 @@ static void enqueue_data(
 	
 	p_prev = &(g_sensor_data.m_prev);
 	 	
-	/* store the diff */
+	/* calculate the diff */
 	tmp_dev.m_x =
 		(in->x > p_prev->x) ?
 			in->x - p_prev->x :
@@ -173,6 +177,9 @@ static void enqueue_data(
 		PRINTK("failed to fifo in\n");
 		return;
 	}
+
+	/* copy the current tail back to the caller */
+	memcpy(tail, &tmp_dev, sizeof(struct acc_dev_info));
 
 #else
 	if (g_sensor_data.m_head == -1)
@@ -464,7 +471,7 @@ SYSCALL_DEFINE1(accevt_wait, int, event_id)
 	}
 
 	/* Check event_id validation */
-	evt = idr_find(&g_event_idr,event_id);
+	evt = check_event_exist(event_id);
 
 	if (evt == NULL) {
 		mutex_unlock(&data_mtx);
@@ -516,6 +523,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 {
 	struct dev_acceleration data;
 	struct acc_dev_info aged_head;
+	struct acc_dev_info current_tail;
 	struct acc_event_info *evt;
 	struct acc_user_info *task, *next_task;
 	struct acc_dev_info *p_data;
@@ -525,6 +533,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	int retDown = 0;
 	unsigned long sz = sizeof(struct dev_acceleration);
 	unsigned int ts = get_current_time();	
+	unsigned int tmp;
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -540,10 +549,8 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
 	
 	/* init aged head */
-	aged_head.m_x = 0;
-	aged_head.m_y = 0;
-	aged_head.m_z = 0;
-	aged_head.m_timestamp = 0;	
+	memset(&aged_head, 0, sizeof(struct acc_dev_info));
+	memset(&current_tail, 0, sizeof(struct acc_dev_info));
 	
 	retDown = mutex_lock_interruptible(&data_mtx);	
 	if (retDown != 0) {
@@ -557,7 +564,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	init_fifo();
 	
 	/* step 1. put data into the Q */
-	enqueue_data(&data, &aged_head, &is_valid, ts);
+	enqueue_data(&data, &aged_head, &current_tail, &is_valid, ts);
 
 	/* step 2. check if any event is activated */
 	/* TODO: implement the algorithm */
@@ -573,22 +580,24 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			if (task->m_activated == M_FALSE)
 				continue;
 
-			/* TODO:					*/
 			/* new algo using aged_head and is_valid	*/
 			/* we don not to iterate everything		*/
-			p_data = &(g_sensor_data.m_buf[modular_dec(
-						g_sensor_data.m_tail)]);
+			tmp = aged_head.m_x + aged_head.m_y + aged_head.m_z; 
 
 			/* decrement */
 			if (is_valid &&
 				aged_head.m_timestamp > task->m_timestamp &&
+				tmp > NOISE &&
 				aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
 				aged_head.m_z >= p_mot->dlt_z)
 				task->m_validCnt--;
 
 			/* increment */
-			if (p_data->m_x >= p_mot->dlt_x &&
+			p_data = &current_tail;
+			tmp = p_data->m_x + p_data->m_y + p_data->m_z; 
+			if (tmp > NOISE &&
+				p_data->m_x >= p_mot->dlt_x &&
 				p_data->m_y >= p_mot->dlt_y &&
 				p_data->m_z >= p_mot->dlt_z)
 				task->m_validCnt++;

@@ -4,7 +4,7 @@
 /* Header of system calls of hw3 */
 /* definitions */
 /*****************************************************************************/
-/* BOOL defines */
+#define __HW3_KFIFO__	1 
 #define BOOL		int
 #define M_TRUE		(1)
 #define	M_FALSE		(0)
