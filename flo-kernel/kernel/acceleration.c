@@ -439,6 +439,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	int retDown = 0;
 	/* int matchCount, i = 0 */
 	unsigned long sz = sizeof(struct dev_acceleration);
+	unsigned int tmp;
 
 	if (acceleration == NULL) {
 		PRINTK("set_acceleration NULL pointer param\n");
@@ -530,7 +531,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 			p_data = &(g_sensor_data.m_buf[modular_dec(
 						g_sensor_data.m_tail)]);
 
+			tmp = aged_head.m_x + aged_head.m_y + aged_head.m_z;
+
 			if (is_valid &&
+				tmp > NOISE &&
 				aged_head.m_timestamp > task->m_timestamp &&
 				aged_head.m_x >= p_mot->dlt_x &&
 				aged_head.m_y >= p_mot->dlt_y &&
@@ -539,7 +543,9 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 				task->m_validCnt--;
 			}
 
-			if (p_data->m_x >= p_mot->dlt_x &&
+			tmp = p_data->m_x + p_data->m_y + p_data->m_z;
+			if (tmp > NOISE &&
+				p_data->m_x >= p_mot->dlt_x &&
 				p_data->m_y >= p_mot->dlt_y &&
 				p_data->m_z >= p_mot->dlt_z) {
 
