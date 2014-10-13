@@ -49,7 +49,7 @@ $(MY_TARGET): $(MY_OBJECTS)
 
 .PHONY: clean
 clean:
-	@echo [CLEAN] removing object files + $(TARGET)...
+	@echo [CLEAN] removing object files + $(TARGET) + $(MY_TARGET)...
 	@rm -f $(OBJECTS) $(TARGET)
 	@rm -f $(MY_OBJECTS) $(MY_TARGET)
 

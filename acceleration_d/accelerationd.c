@@ -12,6 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <hardware/hardware.h>
 #include <hardware/sensors.h> /* <-- This is a good place to look! */
 #include "../flo-kernel/include/linux/akm8975.h"
@@ -33,7 +34,7 @@
 
 
 /* set to 1 for a bit of debug output */
-#if 1
+#if 0
 	#define dbg(fmt, ...) printf("Accelerometer: " fmt, ## __VA_ARGS__)
 #else
 	#define dbg(fmt, ...)
@@ -78,26 +79,62 @@ static int poll_sensor_data(
 
 static void create_my_daemon(void)
 {
+	int fd;
 	pid_t child;
 	uid_t uid = getuid();
 
 	/* it's root only */
 	if (uid != 0) {
-		dbg("Sorry you are not root.");
+		dbg("Sorry you are not root\n");
 		exit(0);
 	}
 
 	child = fork();
 
 	if (child < 0) {
-		dbg("You failed to fork - bye bye");
+		dbg("You failed to fork - bye bye\n");
 		exit(-1);
 	}
 
 	if (child > 0) {
-		dbg("I am parent - byebye");
+		dbg("I am parent - byebye\n");
 		exit(0);
 	}
+
+	if (setsid() < 0) {
+		dbg("Failed to become a session leader\n");
+		exit(-1);
+	}
+
+	child = fork();
+
+	if (child < 0) {
+		dbg("Failed to fork the second time\n");
+		exit(-1);
+	}
+
+	if (child > 0) {
+		dbg("Second parent bye bye\n");
+		exit(0);
+	}
+
+	if (chdir("/") < 0) {
+		dbg("chdir failed\n");
+		exit(-1);
+	}
+
+	umask(0);
+
+	fd = open("/dev/null", O_RDWR);
+	if (fd < 0) {
+		dbg("Failed to open NULL device\n");
+		exit(-1);
+	}
+	dup2(fd, 0);
+	dup2(fd, 1);
+	dup2(fd, 2);
+
+	close(fd);
 }
 
 /* entry point: fill in daemon implementation
