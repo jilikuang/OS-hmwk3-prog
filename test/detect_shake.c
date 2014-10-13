@@ -151,8 +151,8 @@ int main(int argc, char **argv)
 			retval = pid;
 		}
 
-		/* Fork more child to detect events at a later time 
-		* Child processes comes in as we iterating the event 
+		/* Fork more child to detect events at a later time
+		* Child processes comes in as we iterating the event
 		* with a stepping time.
 		*/
 

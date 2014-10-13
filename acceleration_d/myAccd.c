@@ -124,7 +124,7 @@ int main(int argc, char **argv)
 		if (tmp != NULL && *tmp != '\0') {
 			dbg("Invalid input, use default\n");
 			g_interval = TIME_INTERVAL;
-		} else 
+		} else
 			g_interval = (int)v;
 
 	} else {
