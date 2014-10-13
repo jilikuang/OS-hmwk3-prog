@@ -228,8 +228,10 @@ SYSCALL_DEFINE1(set_acceleration,
 	}
 
 	/* @lfred: fix piazza 311 */
-	if (current_uid() != 0)
+	if (current_uid() != 0) {	
+		PRINTK("User %d is not allowed.\n", current_uid());
 		return -EACCES;
+	}
 
 	retDown = mutex_lock_interruptible(&set_mutex);
 	if (retDown != 0) {
@@ -457,8 +459,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	}
 
 	/* fix piazza 311 */
-	if (current_uid() != 0)
+	if (current_uid() != 0) {
+		PRINTK("User %d is not allowed.\n", current_uid());
 		return -EACCES;
+	}
 
 	PRINTK("accevt_signal\n");
 	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
