@@ -228,7 +228,7 @@ SYSCALL_DEFINE1(set_acceleration,
 	}
 
 	/* @lfred: fix piazza 311 */
-	if (current_uid() != 0) {	
+	if (current_uid() != 0) {
 		PRINTK("User %d is not allowed.\n", current_uid());
 		return -EACCES;
 	}
