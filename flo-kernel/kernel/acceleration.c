@@ -9,6 +9,7 @@
 #include <linux/slab.h>
 #include <linux/kfifo.h>
 #include <linux/time.h>
+#include <linux/cred.h>
 
 #include <linux/types.h>
 #include <linux/uaccess.h>
@@ -225,6 +226,10 @@ SYSCALL_DEFINE1(set_acceleration,
 		PRINTK("Illigal user-space address\n");
 		return -EFAULT;
 	}
+
+	/* @lfred: fix piazza 311 */
+	if (current_uid() != 0)
+		return -EACCES;
 
 	retDown = mutex_lock_interruptible(&set_mutex);
 	if (retDown != 0) {
@@ -450,6 +455,10 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 		PRINTK("dude - failed to copy. 88\n");
 		return -EFAULT;
 	}
+
+	/* fix piazza 311 */
+	if (current_uid() != 0)
+		return -EACCES;
 
 	PRINTK("accevt_signal\n");
 	PRINTK("Received data: %d %d %d\n", data.x, data.y, data.z);
