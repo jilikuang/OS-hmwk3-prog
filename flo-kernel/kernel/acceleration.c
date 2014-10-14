@@ -475,7 +475,7 @@ SYSCALL_DEFINE1(accevt_signal, struct dev_acceleration __user *, acceleration)
 	retDown = mutex_lock_interruptible(&data_mtx);
 
 	if (retDown != 0) {
-		PRINTK("Hey dud, you're interupted.");
+		PRINTK("Hey dud, you're out.");
 		return retDown;
 	}
 

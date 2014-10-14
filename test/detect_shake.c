@@ -1,5 +1,5 @@
 /**
- * The implemenation of detecting shakes
+ * The impl. of detecting shakes
  */
 
 #include <stdlib.h>
