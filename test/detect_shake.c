@@ -31,15 +31,15 @@ struct acc_motion {
 static void configure_motion(struct acc_motion *ver,
 	struct acc_motion *hor, struct acc_motion *shake) {
 	/*vertical: high tolerance on y, low tolerance on others*/
-	ver->dlt_x = 200;
+	ver->dlt_x = 10;
 	ver->dlt_y = 500;
-	ver->dlt_z = 200;
+	ver->dlt_z = 10;
 	ver->frq = INIT_FRQ;
 
 	/*horizontal: high tolerance on x, low tolerance on others*/
 	hor->dlt_x = 500;
-	hor->dlt_y = 200;
-	hor->dlt_z = 200;
+	hor->dlt_y = 10;
+	hor->dlt_z = 10;
 	hor->frq = INIT_FRQ;
 
 	/*shakeup: mid-high tolerance on x,y,z*/
